@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline Browser AI Companion</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/assets/index-C8n-Uxh5.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-CCOGQkxL.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Navigation Sidebar (Jan AI Style) -->
+        <nav class="nav-sidebar">
+            <div class="nav-logo">
+                <svg class="logo-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="url(#nav-logo-grad)" stroke="#818CF8" stroke-width="1" stroke-linejoin="round"/>
+                    <path d="M2 17L12 22L22 17" stroke="#818CF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M2 12L12 17L22 12" stroke="#6366F1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <defs>
+                        <linearGradient id="nav-logo-grad" x1="2" y1="2" x2="22" y2="12" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#818CF8"/>
+                            <stop offset="1" stop-color="#C084FC"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <div class="nav-items">
+                <button class="nav-item active" id="nav-chat-btn" title="Chat Session">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <span class="nav-label">Chat</span>
+                </button>
+                <button class="nav-item" id="nav-hub-btn" title="Model Hub">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                    <span class="nav-label">Hub</span>
+                </button>
+            </div>
+            <div class="nav-footer">
+                <button class="nav-item" id="nav-settings-btn" title="System Settings / Diagnostics">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    <span class="nav-label">Settings</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Sidebar / Status Panel -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-toggle-close" id="sidebar-close-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </div>
+
+            <div class="brand">
+                <div class="logo-container">
+                    <svg class="logo-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="url(#logo-grad)" stroke="#818CF8" stroke-width="1" stroke-linejoin="round"/>
+                        <path d="M2 17L12 22L22 17" stroke="#818CF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M2 12L12 17L22 12" stroke="#6366F1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <defs>
+                            <linearGradient id="logo-grad" x1="2" y1="2" x2="22" y2="12" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#818CF8"/>
+                                <stop offset="1" stop-color="#C084FC"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <h1>AETHER</h1>
+                    <span class="badge">Local WebGPU Engine</span>
+                </div>
+            </div>
+
+            <!-- Configuration / Device Selection -->
+            <div class="section config-section">
+                <h2 class="section-title">Hardware Acceleration</h2>
+                <div class="toggle-group">
+                    <label class="toggle-btn">
+                        <input type="radio" name="device" value="webgpu" checked id="device-webgpu">
+                        <span>WebGPU (Active)</span>
+                    </label>
+                    <label class="toggle-btn">
+                        <input type="radio" name="device" value="wasm" id="device-wasm">
+                        <span>WASM (CPU)</span>
+                    </label>
+                </div>
+                <div id="webgpu-status-text" class="status-helper">Detecting WebGPU support...</div>
+            </div>
+
+            <!-- Model Load States -->
+            <div class="section models-section">
+                <h2 class="section-title">Model Cache Diagnostics</h2>
+                
+                <div class="model-status-card" id="status-chat">
+                    <div class="status-header">
+                        <div class="model-info">
+                            <span class="status-dot dot-chat"></span>
+                            <span class="model-name" id="diagnostic-chat-name">LLM (Liquid 1.2B)</span>
+                        </div>
+                        <span class="status-indicator waiting">Inactive</span>
+                    </div>
+                    <div class="progress-bar-container"><div class="progress-bar" style="width: 0%"></div></div>
+                    <div class="progress-details">0% downloaded</div>
+                </div>
+
+                <div class="model-status-card" id="status-asr">
+                    <div class="status-header">
+                        <div class="model-info">
+                            <span class="status-dot dot-asr"></span>
+                            <span class="model-name">STT (Whisper)</span>
+                        </div>
+                        <span class="status-indicator waiting">Inactive</span>
+                    </div>
+                    <div class="progress-bar-container"><div class="progress-bar" style="width: 0%"></div></div>
+                    <div class="progress-details">0% downloaded</div>
+                </div>
+
+                <div class="model-status-card" id="status-tts">
+                    <div class="status-header">
+                        <div class="model-info">
+                            <span class="status-dot dot-tts"></span>
+                            <span class="model-name">TTS (Kokoro)</span>
+                        </div>
+                        <span class="status-indicator waiting">Inactive</span>
+                    </div>
+                    <div class="progress-bar-container"><div class="progress-bar" style="width: 0%"></div></div>
+                    <div class="progress-details">0% downloaded</div>
+                </div>
+
+                <div class="model-status-card" id="status-vision">
+                    <div class="status-header">
+                        <div class="model-info">
+                            <span class="status-dot dot-vision"></span>
+                            <span class="model-name">Vision (ViT-GPT2)</span>
+                        </div>
+                        <span class="status-indicator lazy">Lazy-loaded</span>
+                    </div>
+                    <div class="progress-bar-container"><div class="progress-bar" style="width: 0%"></div></div>
+                    <div class="progress-details">Loads on image upload</div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="section voice-config">
+                <h2 class="section-title">Acoustic Synthesis</h2>
+                <div class="input-field">
+                    <label for="voice-select" class="field-label">Synthesized Voice</label>
+                    <div class="select-wrapper">
+                        <select id="voice-select">
+                            <option value="af_sky" selected>Sky (Female - Natural)</option>
+                            <option value="af_bella">Bella (Female - Clear)</option>
+                            <option value="af_sarah">Sarah (Female - Warm)</option>
+                            <option value="am_adam">Adam (Male - Conversational)</option>
+                            <option value="am_michael">Michael (Male - Expressive)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="toggle-field">
+                    <label for="tts-speech-toggle" class="checkbox-container">
+                        <input type="checkbox" id="tts-speech-toggle" checked>
+                        <span class="checkmark"></span>
+                        Enable Voice Synthesis
+                    </label>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <p>Protected by local sandboxing. All calculations are executed on device.</p>
+            </div>
+        </aside>
+
+        <!-- Main Content Wrapper -->
+        <main class="main-content">
+            <!-- Loading Modal Overlay -->
+            <div id="init-overlay" class="overlay">
+                <div class="overlay-content">
+                    <div class="logo-spinner">
+                        <div class="spinner-ring"></div>
+                        <div class="logo-core">⚡</div>
+                    </div>
+                    <h2>Initialize Local AI Engine</h2>
+                    <p id="init-status">Setting up Web Worker thread...</p>
+                    <button id="start-btn" disabled>Detecting hardware...</button>
+                </div>
+            </div>
+
+            <!-- Chat View Panel -->
+            <div class="view-panel active" id="chat-view">
+                <!-- Mobile header toggler -->
+                <header class="mobile-nav-bar">
+                    <button class="mobile-toggle-btn" id="sidebar-open-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                    </button>
+                    <div class="mobile-brand">AETHER AI</div>
+                </header>
+
+                <!-- Chat Header with Model Selector -->
+                <header class="chat-header">
+                    <div class="header-left">
+                        <div class="session-title-wrap">
+                            <h2>Secure Sandbox</h2>
+                            <span class="status-pulse-dot"></span>
+                        </div>
+                    </div>
+
+                    <!-- Jan AI style Model Selector -->
+                    <div class="model-selector-container">
+                        <button class="model-selector-trigger" id="model-selector-trigger" title="Select Local Model">
+                            <span class="model-selector-icon">⚡</span>
+                            <span class="model-selector-name" id="selected-model-name">Liquid LFM-2.5 1.2B</span>
+                            <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="model-selector-dropdown hidden" id="model-selector-dropdown">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+
+                    <div class="header-right">
+                        <button id="clear-btn" class="text-icon-btn" title="Clear Chat">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            Clear History
+                        </button>
+                    </div>
+                </header>
+
+                <!-- Chat Message Logs -->
+                <div class="chat-messages" id="chat-messages">
+                    <div class="message system">
+                        <div class="msg-content">
+                            <div class="system-intro-card">
+                                <div class="system-intro-logo">⚡</div>
+                                <h3>Welcome to Aether Local AI</h3>
+                                <p>All processing runs <strong>100% locally</strong> inside your web browser. E2E privacy is preserved. No remote API requests are made.</p>
+                                <div class="system-capabilities">
+                                    <span class="cap-pill">💧 Liquid 1.2B (Thinking)</span>
+                                    <span class="cap-pill">🎙️ Whisper Dictation</span>
+                                    <span class="cap-pill">🔊 Kokoro Vocalizer</span>
+                                    <span class="cap-pill">🖼️ ViT Vision</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image preview bar -->
+                <div id="image-preview-container" class="image-preview-bar hidden">
+                    <div class="preview-wrap">
+                        <img id="image-preview" src="" alt="Selected image">
+                        <button id="remove-image-btn" class="close-btn" aria-label="Remove image">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    </div>
+                    <div class="image-loading-overlay hidden" id="image-analyzing">
+                        <div class="mini-spinner"></div>
+                        <span class="pulse-text">Interpreting pixels locally...</span>
+                    </div>
+                </div>
+
+                <!-- Input area -->
+                <footer class="chat-input-container">
+                    <div class="input-actions-bar">
+                        <!-- Image drop / Upload button -->
+                        <label class="icon-action-btn" title="Attach Image">
+                            <input type="file" id="image-input" accept="image/*" style="display: none;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                            <span>Attach Image</span>
+                        </label>
+                        <span id="uploaded-info" class="action-status-text"></span>
+                    </div>
+
+                    <div class="input-row">
+                        <textarea id="prompt-input" placeholder="Initiate a dialogue..." rows="1" disabled></textarea>
+                        
+                        <!-- Microphone STT button -->
+                        <button id="mic-btn" class="circular-control-btn mic-action" title="Voice Input" disabled>
+                            <svg class="mic-svg" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                        </button>
+                        
+                        <button id="send-btn" class="circular-control-btn send-action primary" title="Send message" disabled>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </button>
+                    </div>
+
+                    <!-- Dictation / Wave visualizer -->
+                    <div id="mic-recording-status" class="recording-status-overlay hidden">
+                        <div class="audio-wave-bars">
+                            <span class="bar bar-1"></span>
+                            <span class="bar bar-2"></span>
+                            <span class="bar bar-3"></span>
+                            <span class="bar bar-4"></span>
+                            <span class="bar bar-5"></span>
+                        </div>
+                        <span id="recording-text">Processing acoustics...</span>
+                    </div>
+                </footer>
+            </div>
+
+            <!-- Model Hub View Panel -->
+            <div class="view-panel" id="hub-view" style="display: none;">
+                <header class="hub-header">
+                    <div class="hub-title-wrap">
+                        <h2>Model Hub</h2>
+                        <p class="hub-subtitle">Explore and run open-source models directly in your browser Sandbox.</p>
+                    </div>
+                    <div class="hub-search-container">
+                        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input type="text" id="hub-search-input" placeholder="Search local models by keyword...">
+                    </div>
+                </header>
+
+                <div class="hub-filters">
+                    <button class="filter-tab active" data-filter="all">All Models</button>
+                    <button class="filter-tab" data-filter="text">Text Generation</button>
+                    <button class="filter-tab" data-filter="multimodal">Vision & Audio</button>
+                </div>
+
+                <div class="hub-grid" id="hub-grid">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Main JS Orchestrator -->
+</body>
+</html>
