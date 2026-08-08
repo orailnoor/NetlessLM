@@ -6,3 +6,5 @@ test-results/
 .vite/
 .DS_Store
 .firebase/
+firebase-debug.log*
+*.log

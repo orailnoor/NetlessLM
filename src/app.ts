@@ -97,7 +97,7 @@ const ACCEPT_BY_KIND: Record<'image' | 'audio' | 'document', string> = {
   audio: 'audio/wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/webm,.wav,.mp3,.m4a,.webm',
   document: '.pdf,.docx,.txt,.md,.csv,.json,.html,.htm,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 };
-const SYSTEM_PROMPT = 'You are Aether, a concise private assistant running locally in the browser. Answer directly, stay under 500 tokens, and always finish the final sentence.';
+const SYSTEM_PROMPT = 'You are Aether, a helpful private assistant running locally in the browser. Answer clearly, accurately, and complete your thoughts.';
 type PreparedAction = 'image' | 'audio' | 'document' | 'record';
 
 let capabilities: CapabilityReport;
@@ -821,7 +821,7 @@ async function generateTextWithRecovery(
   onToken: (text: string, tokenCount: number, elapsedMs: number, reasoning: string, thinkingComplete: boolean) => void,
   onRecover: () => void
 ): Promise<GenerationResult> {
-  const maxNewTokens = enableThinking ? 1_024 : 640;
+  const maxNewTokens = 2_048;
   try {
     return await textEngine.generate(messages, maxNewTokens, enableThinking, onToken);
   } catch (error) {
