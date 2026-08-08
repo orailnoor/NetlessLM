@@ -85,10 +85,54 @@ test('landing downloads no model runtime and has exactly three modes without sea
 
 test('onboarding leads to explicit LFM text model download and local chat', async ({ page }) => {
   await finishOnboarding(page);
+  const header = await page.locator('.workspace-header').boundingBox();
+  const modelPill = await page.locator('#model-pill').boundingBox();
+  expect(header).not.toBeNull();
+  expect(modelPill).not.toBeNull();
+  expect(Math.abs((modelPill!.x + modelPill!.width / 2) - (header!.x + header!.width / 2))).toBeLessThanOrEqual(2);
+  await expect(page.getByLabel('Attach document')).toBeVisible();
+  await expect(page.getByLabel('Start recording')).toBeHidden();
+  await expect(page.locator('.mode-chip, .attachment-menu')).toHaveCount(0);
   await page.getByLabel('Message Aether').fill('Give me one local idea');
   await page.getByLabel('Send message').click();
   await expect(page.getByText(/private local response/i)).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('#recent-list .recent-item')).toHaveCount(1);
+});
+
+test('text input stays locked until the user manually loads the model', async ({ page }) => {
+  const onboarding = page.locator('#onboarding-dialog');
+  await onboarding.getByRole('button', { name: 'Continue' }).click();
+  await onboarding.getByRole('button', { name: 'Continue' }).click();
+  await onboarding.getByRole('button', { name: 'Choose text model' }).click();
+  await page.getByLabel('Close model picker').click();
+  await expect(page.getByLabel('Message Aether')).toBeDisabled();
+  await expect(page.locator('#composer-preparation')).toContainText(/Load LFM 2.5 .* to continue/i);
+  await page.locator('#composer-preparation').getByRole('button', { name: 'Load model' }).click();
+  await expect(page.locator('#composer-preparation-percent')).toContainText(/\d+%/);
+  await expect(page.getByLabel('Message Aether')).toBeEnabled({ timeout: 10_000 });
+});
+
+test('Thinking model exposes a toggle and saves collapsible reasoning separately', async ({ page }) => {
+  await finishOnboarding(page);
+  await expect(page.getByLabel('Enable thinking')).toBeHidden();
+  await page.getByLabel('Choose local model').click();
+  await page.locator('.model-entry').filter({ hasText: 'LFM 2.5 1.2B Thinking' }).getByRole('button', { name: 'Download' }).click();
+  await expect(page.getByLabel('Enable thinking')).toBeVisible({ timeout: 10_000 });
+  await page.getByLabel('Enable thinking').click();
+  await expect(page.getByLabel('Disable thinking')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByLabel('Message Aether').fill('What is 21 times 2?');
+  await page.getByLabel('Send message').click();
+  await expect(page.locator('.thinking-block[open]')).toBeVisible();
+  await expect(page.getByText(/private local response/i)).toBeVisible({ timeout: 10_000 });
+  const thinking = page.locator('.thinking-block').last();
+  await expect(thinking).not.toHaveAttribute('open');
+  await expect(thinking.locator('.thinking-content')).toContainText(/identify the request/i);
+  await thinking.locator('summary').click();
+  await expect(thinking).toHaveAttribute('open', '');
+  await page.reload();
+  await reopenFirstRecent(page);
+  await expect(page.locator('.thinking-block')).toHaveCount(1);
+  await expect(page.locator('.thinking-block')).not.toHaveAttribute('open');
 });
 
 test('returning user skips onboarding and unsupported WebGPU is explained', async ({ page }) => {
@@ -115,12 +159,17 @@ test('low storage blocks a requested model download with a toast', async ({ page
 test('vision selects an image first, then loads its model before enabling send', async ({ page }) => {
   await finishOnboarding(page);
   await switchToMode(page, 'vision');
+  await expect(page.getByLabel('Attach image')).toBeHidden();
+  await expect(page.getByLabel('Start recording')).toBeHidden();
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Select image' }).click();
   await (await chooser).setFiles({ name: 'tiny.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=', 'base64') });
+  await expect(page.getByLabel('Attach image')).toBeVisible();
   await expect(page.locator('#composer-preparation')).toBeVisible();
+  await expect(page.locator('#composer-preparation')).toContainText(/Load LFM 2.5 VL 450M to continue/i);
   await expect(page.getByLabel('Send message')).toBeDisabled();
   await page.getByLabel('Message Aether').fill('Explain this image');
+  await page.locator('#composer-preparation').getByRole('button', { name: 'Load model' }).click();
   await expect(page.getByLabel('Send message')).toBeEnabled({ timeout: 10_000 });
   await page.getByLabel('Send message').click();
   await expect(page.getByText(/vision model directly analyzed/i)).toBeVisible({ timeout: 10_000 });
@@ -135,9 +184,8 @@ test('vision selects an image first, then loads its model before enabling send',
 
 test('text mode extracts a local text document and saves it with history', async ({ page }) => {
   await finishOnboarding(page);
-  await page.getByLabel('Attach a local file').click();
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('menuitem', { name: /Document/ }).click();
+  await page.getByLabel('Attach document').click();
   await (await chooser).setFiles({ name: 'invoice.txt', mimeType: 'text/plain', buffer: Buffer.from('Invoice total is 42 dollars.') });
   await expect(page.locator('#attachment-tray').getByText('invoice.txt')).toBeVisible();
   await page.getByLabel('Message Aether').fill('What is the invoice total?');
@@ -151,10 +199,11 @@ test('text mode extracts a local text document and saves it with history', async
 test('document generation recovers once from an invalid WebGPU buffer', async ({ page }) => {
   await finishOnboarding(page);
   await page.goto('/?mockEngine=1&mockMedia=1&mockGpuFailure=1');
-  await page.getByLabel('Attach a local file').click();
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('menuitem', { name: /Document/ }).click();
+  await page.getByLabel('Attach document').click();
   await (await chooser).setFiles({ name: 'report.txt', mimeType: 'text/plain', buffer: Buffer.from('The report status is healthy.') });
+  await page.locator('#composer-preparation').getByRole('button', { name: 'Load model' }).click();
+  await expect(page.getByLabel('Message Aether')).toBeEnabled({ timeout: 10_000 });
   await page.getByLabel('Message Aether').fill('What is the report status?');
   await expect(page.getByLabel('Send message')).toBeEnabled({ timeout: 10_000 });
   await page.getByLabel('Send message').click();
@@ -174,14 +223,15 @@ test('file picker opens first, then cold model preparation shows inline progress
     }
   });
   await page.reload();
-  await page.getByLabel('Attach a local file').click();
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('menuitem', { name: /Document/ }).click();
+  await page.getByLabel('Attach document').click();
   await (await chooser).setFiles({ name: 'ready.txt', mimeType: 'text/plain', buffer: Buffer.from('Prepared locally.') });
   await expect(page.locator('#attachment-tray').getByText('ready.txt')).toBeVisible();
   await expect(page.locator('#composer-preparation')).toBeVisible();
-  await expect(page.locator('#composer-preparation-percent')).toContainText(/\d+%/);
+  await expect(page.locator('#composer-preparation')).toContainText(/Load LFM 2.5 350M to continue/i);
   await expect(page.getByLabel('Send message')).toBeDisabled();
+  await page.locator('#composer-preparation').getByRole('button', { name: 'Load model' }).click();
+  await expect(page.locator('#composer-preparation-percent')).toContainText(/\d+%/);
   await expect(page.getByLabel('Send message')).toBeEnabled({ timeout: 10_000 });
   await expect(page.locator('#model-modal-backdrop')).toBeHidden();
 });
@@ -192,9 +242,8 @@ test('PDF and DOCX text are extracted locally by lazy document runtimes', async 
     { name: 'local.pdf', mimeType: 'application/pdf', buffer: await pdfFixture('PDF secret is violet.') },
     { name: 'local.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: await docxFixture('DOCX secret is amber.') }
   ]) {
-    await page.getByLabel('Attach a local file').click();
     const chooser = page.waitForEvent('filechooser');
-    await page.getByRole('menuitem', { name: /Document/ }).click();
+    await page.getByLabel('Attach document').click();
     await (await chooser).setFiles(file);
   }
   await expect.poll(async () => (await extractedAttachmentText(page)).join(' ')).toContain('PDF secret is violet');
@@ -208,8 +257,10 @@ test('audio mode uploads audio, saves transcript, and restores playable response
   await page.getByRole('button', { name: 'Choose audio file' }).click();
   await (await chooser).setFiles({ name: 'voice.wav', mimeType: 'audio/wav', buffer: speechFixture() });
   await expect(page.locator('#composer-preparation')).toBeVisible();
+  await expect(page.locator('#composer-preparation')).toContainText(/Load LFM 2.5 Audio 1.5B to continue/i);
   await expect(page.getByLabel('Send message')).toBeDisabled();
   await page.getByLabel('Message Aether').fill('Reply briefly');
+  await page.locator('#composer-preparation').getByRole('button', { name: 'Load model' }).click();
   await expect(page.getByLabel('Send message')).toBeEnabled({ timeout: 10_000 });
   await page.getByLabel('Send message').click();
   await expect(page.locator('.message-row.user .message-content')).toContainText('Mock local transcription', { timeout: 10_000 });

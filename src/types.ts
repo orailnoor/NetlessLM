@@ -20,6 +20,7 @@ export interface ModelDescriptor {
   tier: CapabilityTier;
   description: string;
   browserVerified?: boolean;
+  supportsThinking?: boolean;
 }
 
 export interface AppPreferencesV2 {
@@ -56,6 +57,7 @@ export interface GenerationMetadata {
   tokenCount?: number;
   elapsedMs?: number;
   stopped?: boolean;
+  reasoning?: string;
 }
 
 export interface PersistedMessageV1 {
@@ -112,15 +114,15 @@ export interface EngineProgress {
 export type WorkerRequest =
   | { type: 'initialize'; requestId: string }
   | { type: 'loadModel'; requestId: string; model: ModelDescriptor; backend: Backend }
-  | { type: 'generate'; requestId: string; messages: ChatMessage[]; maxNewTokens: number }
+  | { type: 'generate'; requestId: string; messages: ChatMessage[]; maxNewTokens: number; enableThinking: boolean }
   | { type: 'cancel'; requestId: string }
   | { type: 'dispose'; requestId: string };
 
 export type WorkerResponse =
   | { type: 'progress'; requestId: string; progress: EngineProgress }
   | { type: 'ready'; requestId: string; modelId: string }
-  | { type: 'token'; requestId: string; text: string; tokenCount: number; elapsedMs: number }
-  | { type: 'complete'; requestId: string; text: string; tokenCount: number; elapsedMs: number; cancelled: boolean }
+  | { type: 'token'; requestId: string; text: string; reasoning: string; thinkingComplete: boolean; tokenCount: number; elapsedMs: number }
+  | { type: 'complete'; requestId: string; text: string; reasoning: string; tokenCount: number; elapsedMs: number; cancelled: boolean }
   | { type: 'disposed'; requestId: string }
   | { type: 'error'; requestId: string; code: string; message: string; recoverable: boolean };
 

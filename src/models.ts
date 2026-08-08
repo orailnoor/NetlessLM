@@ -32,6 +32,22 @@ export const MODEL_CATALOG: readonly ModelDescriptor[] = [
     description: 'Recommended for higher-quality local chat and document Q&A.'
   },
   {
+    id: 'LiquidAI/LFM2.5-1.2B-Thinking-ONNX',
+    revision: 'e7fe61974e3a167dff77c5722db9a1cb7b57140f',
+    name: 'LFM 2.5 1.2B Thinking',
+    publisher: 'Liquid AI',
+    mode: 'text',
+    task: 'text-generation',
+    backend: 'webgpu',
+    dtype: { webgpu: 'q4f16' },
+    downloadBytes: 763_764_000,
+    contextTokens: 32_768,
+    license: 'LFM-1.0',
+    tier: 'quality',
+    description: 'Reasoning model for math, coding, logic, and complex document questions.',
+    supportsThinking: true
+  },
+  {
     id: 'LiquidAI/LFM2.5-VL-450M-ONNX',
     revision: '95c283d4497a56477a83177079fa6b7121abb1b1',
     name: 'LFM 2.5 VL 450M',

@@ -2,6 +2,7 @@
 
 import type { ChatMessage, ModelDescriptor, WorkerRequest, WorkerResponse } from './types';
 import { DownloadProgressTracker } from './progress';
+import { splitThinkingOutput } from './thinking';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -19,21 +20,15 @@ function post(message: WorkerResponse): void {
   self.postMessage(message);
 }
 
-function visibleAnswer(text: string): string {
-  const closedThink = text.lastIndexOf('</think>');
-  if (closedThink >= 0) return text.slice(closedThink + 8).trimStart();
-  return text.replace(/<think>[\s\S]*$/i, '').replace(/<\/?think>/gi, '').trimStart();
-}
-
 function outputText(output: unknown): string {
   const first = Array.isArray(output) ? output[0] : undefined;
   if (!first || typeof first !== 'object' || !('generated_text' in first)) return '';
   const generated = (first as { generated_text: unknown }).generated_text;
-  if (typeof generated === 'string') return visibleAnswer(generated);
+  if (typeof generated === 'string') return generated;
   if (Array.isArray(generated)) {
     const last = generated.at(-1);
     if (last && typeof last === 'object' && 'content' in last) {
-      return visibleAnswer(String((last as { content: unknown }).content));
+      return String((last as { content: unknown }).content);
     }
   }
   return '';
@@ -92,7 +87,7 @@ async function loadModel(requestId: string, model: ModelDescriptor, backend: 'we
   post({ type: 'ready', requestId, modelId: model.id });
 }
 
-async function generate(requestId: string, messages: ChatMessage[], maxNewTokens: number): Promise<void> {
+async function generate(requestId: string, messages: ChatMessage[], maxNewTokens: number, enableThinking: boolean): Promise<void> {
   if (!generator || !transformersModule || !stoppingCriteria) throw new Error('Load a model before generating.');
   stoppingCriteria.reset();
   const started = performance.now();
@@ -104,10 +99,16 @@ async function generate(requestId: string, messages: ChatMessage[], maxNewTokens
     skip_special_tokens: true,
     callback_function: (chunk: string) => {
       streamed += chunk;
+      const partialThinkingTag = enableThinking && !/<think>/i.test(streamed) && '<think>'.startsWith(streamed.trimStart().toLowerCase());
+      const parsed = partialThinkingTag
+        ? { answer: '', reasoning: '', thinkingComplete: false }
+        : splitThinkingOutput(streamed);
       post({
         type: 'token',
         requestId,
-        text: visibleAnswer(streamed),
+        text: parsed.answer,
+        reasoning: parsed.reasoning,
+        thinkingComplete: parsed.thinkingComplete,
         tokenCount,
         elapsedMs: performance.now() - started
       });
@@ -121,13 +122,14 @@ async function generate(requestId: string, messages: ChatMessage[], maxNewTokens
     do_sample: false,
     streamer,
     stopping_criteria: [stoppingCriteria],
-    tokenizer_encode_kwargs: { enable_thinking: false }
+    tokenizer_encode_kwargs: { enable_thinking: enableThinking }
   });
-  const text = outputText(output) || visibleAnswer(streamed);
+  const parsed = splitThinkingOutput(outputText(output) || streamed);
   post({
     type: 'complete',
     requestId,
-    text,
+    text: parsed.answer,
+    reasoning: parsed.reasoning,
     tokenCount,
     elapsedMs: performance.now() - started,
     cancelled: stoppingCriteria ? (stoppingCriteria as unknown as { interrupted: boolean }).interrupted : false
@@ -142,7 +144,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
     } else if (request.type === 'loadModel') {
       await loadModel(request.requestId, request.model, request.backend);
     } else if (request.type === 'generate') {
-      await generate(request.requestId, request.messages, request.maxNewTokens);
+      await generate(request.requestId, request.messages, request.maxNewTokens, request.enableThinking);
     } else if (request.type === 'cancel') {
       stoppingCriteria?.interrupt();
     } else if (request.type === 'dispose') {

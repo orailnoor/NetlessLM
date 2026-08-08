@@ -60,7 +60,7 @@ const sendButton = element<HTMLButtonElement>('send-button');
 const stopButton = element<HTMLButtonElement>('stop-button');
 const micButton = element<HTMLButtonElement>('mic-button');
 const attachButton = element<HTMLButtonElement>('attach-button');
-const attachmentMenu = element<HTMLDivElement>('attachment-menu');
+const thinkingToggle = element<HTMLButtonElement>('thinking-toggle');
 const attachmentTray = element<HTMLDivElement>('attachment-tray');
 const composerPreparation = element<HTMLDivElement>('composer-preparation');
 const composerPreparationLabel = element<HTMLSpanElement>('composer-preparation-label');
@@ -68,7 +68,6 @@ const composerPreparationPercent = element<HTMLElement>('composer-preparation-pe
 const composerPreparationFill = element<HTMLDivElement>('composer-preparation-fill');
 const composerPreparationRetry = element<HTMLButtonElement>('composer-preparation-retry');
 const fileInput = element<HTMLInputElement>('file-input');
-const composerModeChip = element<HTMLSpanElement>('composer-mode-chip');
 const modelPill = element<HTMLButtonElement>('model-pill');
 const activeModelName = element<HTMLSpanElement>('active-model-name');
 const recentList = element<HTMLDivElement>('recent-list');
@@ -98,7 +97,7 @@ const ACCEPT_BY_KIND: Record<'image' | 'audio' | 'document', string> = {
   audio: 'audio/wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/webm,.wav,.mp3,.m4a,.webm',
   document: '.pdf,.docx,.txt,.md,.csv,.json,.html,.htm,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 };
-const SYSTEM_PROMPT = 'You are Aether, a concise private assistant running locally in the browser. Answer directly, stay under 500 tokens, always finish the final sentence, and do not expose hidden reasoning.';
+const SYSTEM_PROMPT = 'You are Aether, a concise private assistant running locally in the browser. Answer directly, stay under 500 tokens, and always finish the final sentence.';
 type PreparedAction = 'image' | 'audio' | 'document' | 'record';
 
 let capabilities: CapabilityReport;
@@ -126,7 +125,9 @@ const sessionReadyModels = new Set<string>();
 const processingAttachmentIds = new Set<string>();
 const inlineModelPromises: Partial<Record<AppMode, Promise<boolean>>> = {};
 let failedInlineMode: AppMode | null = null;
+let promptedModelMode: AppMode | null = null;
 let inlinePreparationVersion = 0;
+let thinkingEnabled = false;
 
 async function modelIsCached(model: ModelDescriptor): Promise<boolean> {
   return sessionReadyModels.has(model.id) || await isModelCached(model).catch(() => false);
@@ -167,9 +168,9 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 
 function setBusy(busy: boolean): void {
   generating = busy;
-  promptInput.disabled = busy;
   attachButton.disabled = busy;
   micButton.disabled = busy;
+  thinkingToggle.disabled = busy;
   sendButton.classList.toggle('hidden', busy);
   stopButton.classList.toggle('hidden', !busy);
   updateSendState();
@@ -187,6 +188,8 @@ function updateSendState(): void {
   }
   if (!requiredModes.size && (activeMode === 'text' || promptInput.value.trim())) requiredModes.add(activeMode);
   const modelsReady = [...requiredModes].every((mode) => sessionReadyModels.has(selectedModel(mode).id));
+  const textModelReady = activeMode !== 'text' || sessionReadyModels.has(selectedModel('text').id);
+  promptInput.disabled = generating || !textModelReady;
   sendButton.disabled = generating || processingAttachmentIds.size > 0 || !modelsReady || (
     activeMode === 'audio'
       ? !hasAudio
@@ -194,6 +197,30 @@ function updateSendState(): void {
         ? !hasImage || (!promptInput.value.trim() && currentConversation?.messages.length !== 0)
         : !promptInput.value.trim() && pendingAttachmentIds.length === 0
   );
+}
+
+function showManualModelPrompt(mode: AppMode, failed = false): void {
+  const model = selectedModel(mode);
+  promptedModelMode = mode;
+  composerPreparation.classList.remove('hidden');
+  composerPreparationLabel.textContent = failed ? `${model.name} could not load` : `Load ${model.name} to continue`;
+  composerPreparationPercent.textContent = failed ? '' : formatBytes(model.downloadBytes);
+  composerPreparationFill.style.width = '0%';
+  composerPreparationRetry.textContent = failed ? 'Retry' : 'Load model';
+  composerPreparationRetry.classList.remove('hidden');
+  updateSendState();
+}
+
+function syncComposerModelPrompt(): void {
+  const model = selectedModel();
+  const composerIsRelevant = activeMode === 'text' || attachments.size > 0 || Boolean(currentConversation?.messages.length);
+  if (!composerIsRelevant) return;
+  if (sessionReadyModels.has(model.id)) {
+    if (!inlineModelPromises[activeMode] && failedInlineMode !== activeMode) composerPreparation.classList.add('hidden');
+  } else if (!inlineModelPromises[activeMode]) {
+    showManualModelPrompt(activeMode, failedInlineMode === activeMode);
+  }
+  updateSendState();
 }
 
 function resizePrompt(): void {
@@ -229,8 +256,17 @@ function updateModeNavigation(): void {
     button.classList.toggle('active', active);
     if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
   });
-  composerModeChip.textContent = activeMode[0]!.toUpperCase() + activeMode.slice(1);
-  activeModelName.textContent = selectedModel().name;
+  const attachmentLabels: Record<AppMode, string> = { text: 'Attach document', vision: 'Attach image', audio: 'Attach audio file' };
+  attachButton.setAttribute('aria-label', attachmentLabels[activeMode]);
+  micButton.classList.toggle('hidden', activeMode !== 'audio');
+  const model = selectedModel();
+  activeModelName.textContent = model.name;
+  const supportsThinking = activeMode === 'text' && model.supportsThinking === true;
+  if (!supportsThinking) thinkingEnabled = false;
+  thinkingToggle.classList.toggle('hidden', !supportsThinking);
+  thinkingToggle.setAttribute('aria-pressed', String(thinkingEnabled));
+  thinkingToggle.setAttribute('aria-label', thinkingEnabled ? 'Disable thinking' : 'Enable thinking');
+  updateSendState();
 }
 
 async function switchMode(mode: AppMode): Promise<void> {
@@ -255,6 +291,7 @@ async function renderEmptyState(): Promise<void> {
   if (currentConversation?.messages.length || attachments.size) {
     emptyState.classList.add('hidden');
     composerDock.classList.remove('hidden');
+    syncComposerModelPrompt();
     return;
   }
   emptyState.classList.remove('hidden');
@@ -271,12 +308,12 @@ async function renderEmptyState(): Promise<void> {
   emptyIcon.textContent = activeMode === 'text' ? '◌' : activeMode === 'vision' ? '◉' : '●';
   if (activeMode === 'vision') {
     emptyTitle.textContent = 'Choose an image';
-    emptyDescription.textContent = 'Select an image immediately. Its local model prepares afterward.';
+    emptyDescription.textContent = 'Select an image first, then choose when to load its local model.';
     emptyPrimary.textContent = 'Select image';
     emptyPrimary.dataset.action = 'image';
   } else if (activeMode === 'audio') {
     emptyTitle.textContent = 'Start a voice conversation';
-    emptyDescription.textContent = 'Record or choose audio immediately. Its local model prepares afterward.';
+    emptyDescription.textContent = 'Record or choose audio first, then choose when to load its local model.';
     emptyPrimary.textContent = 'Record audio';
     emptyPrimary.dataset.action = 'record';
     emptySecondary.textContent = 'Choose audio file';
@@ -284,10 +321,11 @@ async function renderEmptyState(): Promise<void> {
     emptySecondary.classList.remove('hidden');
   } else {
     emptyTitle.textContent = 'How can I help?';
-    emptyDescription.textContent = 'Ask a question or attach an image, audio recording, or document.';
+    emptyDescription.textContent = 'Load the selected local model, then ask a question or attach a document.';
     emptyPrimary.textContent = 'Start typing';
     emptyPrimary.dataset.action = 'focus';
   }
+  syncComposerModelPrompt();
 }
 
 async function ensureConversation(): Promise<ConversationRecordV1> {
@@ -377,7 +415,7 @@ async function renderConversation(): Promise<void> {
   composerDock.classList.remove('hidden');
   renderAttachmentTray();
   chatMessages.scrollTop = chatMessages.scrollHeight;
-  updateSendState();
+  syncComposerModelPrompt();
 }
 
 async function appendMessageElement(message: PersistedMessageV1): Promise<HTMLElement> {
@@ -411,6 +449,9 @@ async function appendMessageElement(message: PersistedMessageV1): Promise<HTMLEl
   content.className = 'message-content';
   content.innerHTML = message.role === 'assistant' ? renderMarkdown(message.text) : '';
   if (message.role === 'user') content.textContent = message.text;
+  if (message.role === 'assistant' && message.metadata?.reasoning) {
+    bubble.append(createThinkingBlock(message.metadata.reasoning, false, false));
+  }
   bubble.append(content);
   if (message.role === 'assistant') {
     const actions = document.createElement('div');
@@ -587,6 +628,7 @@ async function prepareModelInline(mode: AppMode): Promise<boolean> {
       loadedModelByMode[mode] = model.id;
       sessionReadyModels.add(model.id);
       failedInlineMode = null;
+      promptedModelMode = null;
       if (version === inlinePreparationVersion) {
         composerPreparationLabel.textContent = `${model.name} is ready`;
         composerPreparationPercent.textContent = '100%';
@@ -597,9 +639,7 @@ async function prepareModelInline(mode: AppMode): Promise<boolean> {
       failedInlineMode = mode;
       const message = error instanceof Error ? error.message : String(error);
       composerPreparation.classList.remove('hidden');
-      composerPreparationLabel.textContent = 'Model loading failed';
-      composerPreparationPercent.textContent = '';
-      composerPreparationRetry.classList.remove('hidden');
+      showManualModelPrompt(mode, true);
       showToast(`Model setup failed: ${message}`, 'error', 8000);
       return false;
     } finally {
@@ -658,6 +698,8 @@ async function selectAndLoadModel(model: ModelDescriptor): Promise<void> {
     }
     loadedModelByMode[model.mode] = model.id;
     sessionReadyModels.add(model.id);
+    if (failedInlineMode === model.mode) failedInlineMode = null;
+    if (promptedModelMode === model.mode) promptedModelMode = null;
     const completedProgress = completedDownloadProgress();
     const finalLoaded = completedProgress?.loaded || model.downloadBytes;
     const finalTotal = completedProgress?.total || finalLoaded;
@@ -668,6 +710,7 @@ async function selectAndLoadModel(model: ModelDescriptor): Promise<void> {
     downloading = false;
     loadingModelMode = null;
     await renderEmptyState();
+    syncComposerModelPrompt();
     if (requestedAttachmentKind) {
       const labels: Record<PreparedAction, string> = { image: 'Choose image', audio: 'Choose audio file', document: 'Choose document', record: 'Start recording' };
       downloadButtonMode = 'continue';
@@ -692,12 +735,12 @@ async function selectAndLoadModel(model: ModelDescriptor): Promise<void> {
 }
 
 async function ensureModel(mode: AppMode): Promise<boolean> {
-  return prepareModelInline(mode);
+  const ready = sessionReadyModels.has(selectedModel(mode).id);
+  if (!ready) showManualModelPrompt(mode);
+  return ready;
 }
 
 async function beginAttachment(kind: 'image' | 'audio' | 'document'): Promise<void> {
-  attachmentMenu.classList.add('hidden');
-  attachButton.setAttribute('aria-expanded', 'false');
   openFilePicker(kind);
 }
 
@@ -725,13 +768,12 @@ async function handleFile(file: File, kind: 'image' | 'audio' | 'document'): Pro
   emptyState.classList.add('hidden');
   composerDock.classList.remove('hidden');
   renderAttachmentTray();
-  updateSendState();
-  promptInput.focus();
+  showManualModelPrompt(attachmentMode(kind));
+  if (activeMode !== 'text' || sessionReadyModels.has(selectedModel('text').id)) promptInput.focus();
   void finishAttachmentPreparation(attachment, file);
 }
 
 async function finishAttachmentPreparation(attachment: AttachmentRecordV1, file: File): Promise<void> {
-  const modelPromise = prepareModelInline(attachmentMode(attachment.kind));
   try {
     if (attachment.kind === 'document') {
       showToast(`Reading ${file.name} locally…`);
@@ -741,7 +783,6 @@ async function finishAttachmentPreparation(attachment: AttachmentRecordV1, file:
       attachment.pageCount = extracted.pageCount;
       await saveAttachment(attachment);
     }
-    await modelPromise;
   } catch (extractError) {
     showToast(extractError instanceof Error ? extractError.message : String(extractError), 'error', 7000);
   } finally {
@@ -776,11 +817,13 @@ async function releaseMediaRuntime(): Promise<void> {
 async function generateTextWithRecovery(
   messages: ChatMessage[],
   model: ModelDescriptor,
-  onToken: (text: string, tokenCount: number, elapsedMs: number) => void,
+  enableThinking: boolean,
+  onToken: (text: string, tokenCount: number, elapsedMs: number, reasoning: string, thinkingComplete: boolean) => void,
   onRecover: () => void
 ): Promise<GenerationResult> {
+  const maxNewTokens = enableThinking ? 1_024 : 640;
   try {
-    return await textEngine.generate(messages, 640, onToken);
+    return await textEngine.generate(messages, maxNewTokens, enableThinking, onToken);
   } catch (error) {
     if (!isRecoverableGpuError(error)) throw error;
     onRecover();
@@ -789,7 +832,7 @@ async function generateTextWithRecovery(
     loadedModelByMode.text = undefined;
     sessionReadyModels.delete(model.id);
     if (!await prepareModelInline('text')) throw new Error('The local GPU session could not be restored. Close other GPU-heavy tabs and retry.', { cause: error });
-    return textEngine.generate(messages, 640, onToken);
+    return textEngine.generate(messages, maxNewTokens, enableThinking, onToken);
   }
 }
 
@@ -799,7 +842,7 @@ function runtimeMessages(extraSystem = ''): ChatMessage[] {
 }
 
 async function sendCurrentMessage(): Promise<void> {
-  if (generating || downloading) return;
+  if (generating || downloading || sendButton.disabled) return;
   const prompt = promptInput.value.trim();
   if (activeMode === 'vision') return sendVisionMessage(prompt);
   if (activeMode === 'audio') return sendAudioMessage(prompt);
@@ -832,14 +875,36 @@ async function saveAssistantMessage(
   await renderConversation();
 }
 
-function createStreamingAssistant(label: string): { row: HTMLElement; content: HTMLElement; meta: HTMLElement } {
+function createThinkingBlock(reasoning: string, open: boolean, active: boolean): HTMLDetailsElement {
+  const details = document.createElement('details');
+  details.className = 'thinking-block';
+  details.open = open;
+  const summary = document.createElement('summary');
+  summary.textContent = active ? 'Thinking…' : 'Thinking process';
+  const body = document.createElement('div');
+  body.className = 'thinking-content';
+  body.textContent = reasoning;
+  details.append(summary, body);
+  return details;
+}
+
+function createStreamingAssistant(label: string, showThinking = false): {
+  row: HTMLElement;
+  content: HTMLElement;
+  meta: HTMLElement;
+  thinking?: HTMLDetailsElement;
+  thinkingContent?: HTMLElement;
+} {
   const row = document.createElement('article'); row.className = 'message-row assistant';
   const bubble = document.createElement('div'); bubble.className = 'message-bubble';
+  const thinking = showThinking ? createThinkingBlock('Starting local reasoning…', true, true) : undefined;
   const content = document.createElement('div'); content.className = 'message-content'; content.textContent = label;
   const actions = document.createElement('div'); actions.className = 'message-actions';
-  const meta = document.createElement('span'); actions.append(meta); bubble.append(content, actions); row.append(bubble); chatMessages.append(row);
+  const meta = document.createElement('span'); actions.append(meta);
+  if (thinking) bubble.append(thinking);
+  bubble.append(content, actions); row.append(bubble); chatMessages.append(row);
   chatMessages.scrollTop = chatMessages.scrollHeight;
-  return { row, content, meta };
+  return { row, content, meta, thinking, thinkingContent: thinking?.querySelector('.thinking-content') ?? undefined };
 }
 
 async function sendTextMessage(prompt: string): Promise<void> {
@@ -860,23 +925,30 @@ async function sendTextMessage(prompt: string): Promise<void> {
   await saveUserMessage(finalPrompt);
   if (image) return generateVision(image, finalPrompt, 'vision');
   const model = selectedModel('text');
+  const useThinking = thinkingEnabled && model.supportsThinking === true;
   await releaseMediaRuntime();
   const safeContextTokens = Math.min(model.contextTokens, 2_048);
   const context = documentContext(finalPrompt, safeContextTokens);
   const trimmed = trimConversation(runtimeMessages(context ? `Use these local document excerpts when relevant:\n\n${context}` : ''), safeContextTokens);
   if (trimmed.trimmed) showToast('Older turns were left out to fit the model context.');
-  const streaming = createStreamingAssistant('Thinking locally…');
+  const streaming = createStreamingAssistant('Thinking locally…', useThinking);
   setBusy(true);
   try {
     let lastPaint = 0;
     const result = await generateTextWithRecovery(
       trimmed.messages,
       model,
-      (text, tokens, elapsed) => {
+      useThinking,
+      (text, tokens, elapsed, reasoning, thinkingComplete) => {
         const now = performance.now();
         if (now - lastPaint < 100) return;
         lastPaint = now;
-        streaming.content.textContent = text;
+        if (streaming.thinking && streaming.thinkingContent) {
+          streaming.thinkingContent.textContent = reasoning || 'Starting local reasoning…';
+          streaming.thinking.open = !thinkingComplete;
+          streaming.thinking.querySelector('summary')!.textContent = thinkingComplete ? 'Thinking process' : 'Thinking…';
+        }
+        streaming.content.textContent = text || (thinkingComplete ? 'Writing the final answer…' : 'Thinking locally…');
         streaming.meta.textContent = `${tokens} tokens · ${(elapsed / 1000).toFixed(1)}s`;
       },
       () => {
@@ -885,8 +957,13 @@ async function sendTextMessage(prompt: string): Promise<void> {
         streaming.meta.textContent = '';
       }
     );
+    if (streaming.thinking) streaming.thinking.open = false;
     streaming.row.remove();
-    if (!result.cancelled && result.text.trim()) await saveAssistantMessage(result.text.trim(), [], { tokenCount: result.tokenCount, elapsedMs: result.elapsedMs });
+    if (!result.cancelled && result.text.trim()) await saveAssistantMessage(result.text.trim(), [], {
+      tokenCount: result.tokenCount,
+      elapsedMs: result.elapsedMs,
+      reasoning: result.reasoning.trim() || undefined
+    });
   } catch (generationError) {
     streaming.row.remove();
     console.error('Local text generation failed', generationError);
@@ -1091,19 +1168,23 @@ function bindEvents(): void {
   });
   emptyPrimary.addEventListener('click', () => void handleEmptyAction(emptyPrimary.dataset.action));
   emptySecondary.addEventListener('click', () => void handleEmptyAction(emptySecondary.dataset.action));
-  attachButton.addEventListener('click', () => { const hidden = attachmentMenu.classList.toggle('hidden'); attachButton.setAttribute('aria-expanded', String(!hidden)); });
-  document.querySelectorAll<HTMLButtonElement>('[data-attach-kind]').forEach((button) => button.addEventListener('click', () => void beginAttachment(button.dataset.attachKind as 'image' | 'audio' | 'document')));
+  attachButton.addEventListener('click', () => void beginAttachment(activeMode === 'text' ? 'document' : activeMode === 'vision' ? 'image' : 'audio'));
   fileInput.addEventListener('change', () => { const file = fileInput.files?.[0]; if (file) void handleFile(file, fileInput.dataset.kind as 'image' | 'audio' | 'document'); });
   promptInput.addEventListener('input', () => {
     resizePrompt();
-    if (activeMode === 'text' && promptInput.value.trim() && !pendingAttachmentIds.length) void prepareModelInline('text');
   });
   promptInput.addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendCurrentMessage(); } });
   sendButton.addEventListener('click', () => void sendCurrentMessage());
   stopButton.addEventListener('click', () => { textEngine.cancel(); setBusy(false); showToast('Generation stopped.'); });
   micButton.addEventListener('click', () => void toggleRecording());
+  thinkingToggle.addEventListener('click', () => {
+    if (!selectedModel('text').supportsThinking) return;
+    thinkingEnabled = !thinkingEnabled;
+    thinkingToggle.setAttribute('aria-pressed', String(thinkingEnabled));
+    thinkingToggle.setAttribute('aria-label', thinkingEnabled ? 'Disable thinking' : 'Enable thinking');
+  });
   composerPreparationRetry.addEventListener('click', () => {
-    const mode = failedInlineMode;
+    const mode = promptedModelMode ?? failedInlineMode;
     failedInlineMode = null;
     composerPreparationRetry.classList.add('hidden');
     if (mode) void prepareModelInline(mode);
@@ -1123,7 +1204,12 @@ async function handleEmptyAction(action?: string): Promise<void> {
   if (action === 'image') return beginAttachment('image');
   if (action === 'audio') return beginAttachment('audio');
   if (action === 'record') return toggleRecording();
-  if (action === 'focus') { composerDock.classList.remove('hidden'); promptInput.focus(); return; }
+  if (action === 'focus') {
+    composerDock.classList.remove('hidden');
+    syncComposerModelPrompt();
+    if (!promptInput.disabled) promptInput.focus();
+    return;
+  }
   if (action === 'recheck') { capabilities = await detectCapabilities(); await renderEmptyState(); }
 }
 

@@ -67,16 +67,11 @@
               </div>
               <div class="composer-actions">
                 <div class="attach-wrap">
-                  <button class="round-button" id="attach-button" aria-label="Attach a local file" aria-expanded="false">＋</button>
-                  <div class="attachment-menu hidden" id="attachment-menu" role="menu">
-                    <button data-attach-kind="image" role="menuitem"><span>◉</span><span><strong>Image</strong><small>PNG, JPEG, WebP</small></span></button>
-                    <button data-attach-kind="audio" role="menuitem"><span>●</span><span><strong>Audio file</strong><small>WAV, MP3, M4A, WebM</small></span></button>
-                    <button data-attach-kind="document" role="menuitem"><span>▤</span><span><strong>Document</strong><small>PDF, DOCX, text</small></span></button>
-                  </div>
+                  <button class="round-button" id="attach-button" aria-label="Attach document">＋</button>
                   <input id="file-input" type="file" hidden />
                 </div>
-                <span class="mode-chip" id="composer-mode-chip">Text</span>
-                <button class="round-button" id="mic-button" aria-label="Start recording">●</button>
+                <button class="thinking-toggle hidden" id="thinking-toggle" type="button" aria-label="Enable thinking" aria-pressed="false"><span>✦</span><span>Think</span></button>
+                <button class="round-button hidden" id="mic-button" aria-label="Start recording">●</button>
                 <button class="send-button" id="send-button" aria-label="Send message">↑</button>
                 <button class="stop-button hidden" id="stop-button" aria-label="Stop generation">■</button>
               </div>

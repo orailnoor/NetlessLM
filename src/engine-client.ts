@@ -11,11 +11,12 @@ interface PendingRequest {
   resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
   onProgress?: (progress: EngineProgress) => void;
-  onToken?: (text: string, tokenCount: number, elapsedMs: number) => void;
+  onToken?: (text: string, tokenCount: number, elapsedMs: number, reasoning: string, thinkingComplete: boolean) => void;
 }
 
 export interface GenerationResult {
   text: string;
+  reasoning: string;
   tokenCount: number;
   elapsedMs: number;
   cancelled: boolean;
@@ -26,7 +27,8 @@ export interface TextEngine {
   generate(
     messages: ChatMessage[],
     maxNewTokens: number,
-    onToken: (text: string, tokenCount: number, elapsedMs: number) => void
+    enableThinking: boolean,
+    onToken: (text: string, tokenCount: number, elapsedMs: number, reasoning: string, thinkingComplete: boolean) => void
   ): Promise<GenerationResult>;
   cancel(): void;
   dispose(): Promise<void>;
@@ -75,7 +77,7 @@ export class WorkerTextEngine implements TextEngine {
       return;
     }
     if (message.type === 'token') {
-      pending.onToken?.(message.text, message.tokenCount, message.elapsedMs);
+      pending.onToken?.(message.text, message.tokenCount, message.elapsedMs, message.reasoning, message.thinkingComplete);
       return;
     }
     if (message.type === 'error') {
@@ -83,6 +85,7 @@ export class WorkerTextEngine implements TextEngine {
     } else if (message.type === 'complete') {
       pending.resolve({
         text: message.text,
+        reasoning: message.reasoning,
         tokenCount: message.tokenCount,
         elapsedMs: message.elapsedMs,
         cancelled: message.cancelled
@@ -107,12 +110,13 @@ export class WorkerTextEngine implements TextEngine {
   async generate(
     messages: ChatMessage[],
     maxNewTokens: number,
-    onToken: (text: string, tokenCount: number, elapsedMs: number) => void
+    enableThinking: boolean,
+    onToken: (text: string, tokenCount: number, elapsedMs: number, reasoning: string, thinkingComplete: boolean) => void
   ): Promise<GenerationResult> {
     const id = requestId();
     this.#activeGenerationId = id;
     return this.#post<GenerationResult>(
-      { type: 'generate', requestId: id, messages, maxNewTokens },
+      { type: 'generate', requestId: id, messages, maxNewTokens, enableThinking },
       { onToken }
     );
   }
@@ -165,7 +169,8 @@ export class MockTextEngine implements TextEngine {
   async generate(
     messages: ChatMessage[],
     _maxNewTokens: number,
-    onToken: (text: string, tokenCount: number, elapsedMs: number) => void
+    enableThinking: boolean,
+    onToken: (text: string, tokenCount: number, elapsedMs: number, reasoning: string, thinkingComplete: boolean) => void
   ): Promise<GenerationResult> {
     const storage = globalThis.sessionStorage;
     const shouldFailOnce = new URLSearchParams(globalThis.location?.search ?? '').get('mockGpuFailure') === '1' && storage?.getItem('aether.mockGpuFailureConsumed') !== '1';
@@ -176,17 +181,27 @@ export class MockTextEngine implements TextEngine {
     this.#cancelled = false;
     const prompt = messages.at(-1)?.content ?? '';
     const answer = `This is a private local response to: ${prompt}`;
+    const reasoning = enableThinking ? 'I will identify the request and form a concise local answer.' : '';
     let text = '';
     const started = performance.now();
     let tokens = 0;
+    if (enableThinking) {
+      let partialReasoning = '';
+      for (const word of reasoning.split(' ')) {
+        partialReasoning += `${partialReasoning ? ' ' : ''}${word}`;
+        tokens += 1;
+        onToken('', tokens, performance.now() - started, partialReasoning, false);
+        await new Promise((resolve) => setTimeout(resolve, 35));
+      }
+    }
     for (const word of answer.split(' ')) {
       if (this.#cancelled) break;
       text += `${text ? ' ' : ''}${word}`;
       tokens += 1;
-      onToken(text, tokens, performance.now() - started);
+      onToken(text, tokens, performance.now() - started, reasoning, true);
       await new Promise((resolve) => setTimeout(resolve, 18));
     }
-    return { text, tokenCount: tokens, elapsedMs: performance.now() - started, cancelled: this.#cancelled };
+    return { text, reasoning, tokenCount: tokens, elapsedMs: performance.now() - started, cancelled: this.#cancelled };
   }
 
   cancel(): void {

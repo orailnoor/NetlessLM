@@ -33,11 +33,18 @@ describe('runtime behavior', () => {
 
   it('cancels an in-flight generation cleanly', async () => {
     const engine = new MockTextEngine();
-    const generated = engine.generate([{ role: 'user', content: 'long prompt' }], 100, vi.fn());
+    const generated = engine.generate([{ role: 'user', content: 'long prompt' }], 100, false, vi.fn());
     await new Promise((resolve) => setTimeout(resolve, 25));
     engine.cancel();
     const result = await generated;
     expect(result.cancelled).toBe(true);
     expect(result.tokenCount).toBeLessThan(10);
+  });
+
+  it('returns reasoning separately when thinking is enabled', async () => {
+    const engine = new MockTextEngine();
+    const result = await engine.generate([{ role: 'user', content: 'reason carefully' }], 100, true, vi.fn());
+    expect(result.reasoning).toContain('identify the request');
+    expect(result.text).not.toContain(result.reasoning);
   });
 });

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
-for (const modelId of ['onnx-community/LFM2.5-350M-ONNX', 'LiquidAI/LFM2.5-1.2B-Instruct-ONNX']) {
+for (const modelId of ['onnx-community/LFM2.5-350M-ONNX', 'LiquidAI/LFM2.5-1.2B-Instruct-ONNX', 'LiquidAI/LFM2.5-1.2B-Thinking-ONNX']) {
   test(`real text model ${modelId} generates locally`, async ({ page }) => {
     test.skip(process.env.AETHER_REAL_HARDWARE !== '1', 'Opt-in real WebGPU model test.');
     test.setTimeout(20 * 60_000);
@@ -14,11 +14,17 @@ for (const modelId of ['onnx-community/LFM2.5-350M-ONNX', 'LiquidAI/LFM2.5-1.2B-
       const model = MODEL_CATALOG.find((candidate) => candidate.id === id)!;
       const engine = new WorkerTextEngine();
       await engine.initialize(model, 'webgpu');
-      const generated = await engine.generate([{ role: 'user', content: 'Reply with exactly: local model ready' }], 32, () => {});
+      const generated = await engine.generate(
+        [{ role: 'user', content: 'Reply with exactly: local model ready' }],
+        model.supportsThinking ? 1_024 : 32,
+        model.supportsThinking === true,
+        () => {}
+      );
       await engine.dispose();
-      return generated.text;
+      return { text: generated.text, reasoning: generated.reasoning, supportsThinking: model.supportsThinking === true };
     }, modelId);
-    expect(result.toLowerCase()).toContain('local');
+    expect(result.text.toLowerCase()).toContain('local');
+    if (result.supportsThinking) expect(result.reasoning.length).toBeGreaterThan(0);
   });
 }
 
