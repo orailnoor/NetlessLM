@@ -476,7 +476,7 @@ button {
   font-size: 0.76rem;
   font-weight: 700;
 }
-.thinking-toggle:hover {
+.thinking-toggle:not(:disabled):hover {
   background: #292a2b;
   color: var(--text);
 }
@@ -484,6 +484,10 @@ button {
   border-color: #7354b8;
   background: #2c2340;
   color: #c7acff;
+}
+.thinking-toggle:disabled {
+  opacity: 1;
+  cursor: default;
 }
 .send-button,
 .stop-button {

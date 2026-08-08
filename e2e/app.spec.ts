@@ -112,14 +112,14 @@ test('text input stays locked until the user manually loads the model', async ({
   await expect(page.getByLabel('Message Aether')).toBeEnabled({ timeout: 10_000 });
 });
 
-test('Thinking model exposes a toggle and saves collapsible reasoning separately', async ({ page }) => {
+test('Thinking model shows a fixed active indicator and saves collapsible reasoning separately', async ({ page }) => {
   await finishOnboarding(page);
-  await expect(page.getByLabel('Enable thinking')).toBeHidden();
+  await expect(page.getByLabel('Thinking enabled')).toBeHidden();
   await page.getByLabel('Choose local model').click();
   await page.locator('.model-entry').filter({ hasText: 'LFM 2.5 1.2B Thinking' }).getByRole('button', { name: 'Download' }).click();
-  await expect(page.getByLabel('Enable thinking')).toBeVisible({ timeout: 10_000 });
-  await page.getByLabel('Enable thinking').click();
-  await expect(page.getByLabel('Disable thinking')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('Thinking enabled')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByLabel('Thinking enabled')).toBeDisabled();
+  await expect(page.getByLabel('Thinking enabled')).toHaveAttribute('aria-pressed', 'true');
   await page.getByLabel('Message Aether').fill('What is 21 times 2?');
   await page.getByLabel('Send message').click();
   await expect(page.locator('.thinking-block[open]')).toBeVisible();
@@ -188,9 +188,15 @@ test('text mode extracts a local text document and saves it with history', async
   await page.getByLabel('Attach document').click();
   await (await chooser).setFiles({ name: 'invoice.txt', mimeType: 'text/plain', buffer: Buffer.from('Invoice total is 42 dollars.') });
   await expect(page.locator('#attachment-tray').getByText('invoice.txt')).toBeVisible();
+  await expect(page.locator('#composer-preparation')).toBeHidden();
   await page.getByLabel('Message Aether').fill('What is the invoice total?');
   await page.getByLabel('Send message').click();
   await expect(page.getByText(/private local response/i)).toBeVisible({ timeout: 10_000 });
+  const secondChooser = page.waitForEvent('filechooser');
+  await page.getByLabel('Attach document').click();
+  await (await secondChooser).setFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('The model should remain ready.') });
+  await expect(page.locator('#attachment-tray').getByText('notes.txt')).toBeVisible();
+  await expect(page.locator('#composer-preparation')).toBeHidden();
   await page.reload();
   await reopenFirstRecent(page);
   await expect(page.getByText('invoice.txt')).toBeVisible();

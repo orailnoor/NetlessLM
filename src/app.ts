@@ -127,7 +127,6 @@ const inlineModelPromises: Partial<Record<AppMode, Promise<boolean>>> = {};
 let failedInlineMode: AppMode | null = null;
 let promptedModelMode: AppMode | null = null;
 let inlinePreparationVersion = 0;
-let thinkingEnabled = false;
 
 async function modelIsCached(model: ModelDescriptor): Promise<boolean> {
   return sessionReadyModels.has(model.id) || await isModelCached(model).catch(() => false);
@@ -170,7 +169,6 @@ function setBusy(busy: boolean): void {
   generating = busy;
   attachButton.disabled = busy;
   micButton.disabled = busy;
-  thinkingToggle.disabled = busy;
   sendButton.classList.toggle('hidden', busy);
   stopButton.classList.toggle('hidden', !busy);
   updateSendState();
@@ -262,10 +260,9 @@ function updateModeNavigation(): void {
   const model = selectedModel();
   activeModelName.textContent = model.name;
   const supportsThinking = activeMode === 'text' && model.supportsThinking === true;
-  if (!supportsThinking) thinkingEnabled = false;
   thinkingToggle.classList.toggle('hidden', !supportsThinking);
-  thinkingToggle.setAttribute('aria-pressed', String(thinkingEnabled));
-  thinkingToggle.setAttribute('aria-label', thinkingEnabled ? 'Disable thinking' : 'Enable thinking');
+  thinkingToggle.setAttribute('aria-pressed', 'true');
+  thinkingToggle.setAttribute('aria-label', 'Thinking enabled');
   updateSendState();
 }
 
@@ -585,12 +582,6 @@ function updateInlineProgress(model: ModelDescriptor, progress: EngineProgress):
   updateSendState();
 }
 
-function attachmentMode(kind: AttachmentRecordV1['kind']): AppMode {
-  if (kind === 'image') return 'vision';
-  if (kind === 'audio' || kind === 'generated-audio') return 'audio';
-  return 'text';
-}
-
 async function prepareModelInline(mode: AppMode): Promise<boolean> {
   const model = selectedModel(mode);
   if (loadedModelByMode[mode] === model.id) {
@@ -616,11 +607,14 @@ async function prepareModelInline(mode: AppMode): Promise<boolean> {
       };
       if (mode === 'text') {
         if (loadedModelByMode.text && loadedModelByMode.text !== model.id) {
+          sessionReadyModels.delete(loadedModelByMode.text);
           await textEngine.dispose();
           textEngine = createTextEngine();
         }
         await textEngine.initialize(model, 'webgpu', onProgress);
       } else {
+        if (loadedModelByMode.vision) sessionReadyModels.delete(loadedModelByMode.vision);
+        if (loadedModelByMode.audio) sessionReadyModels.delete(loadedModelByMode.audio);
         await mediaEngine.initialize(model, 'webgpu', onProgress);
         loadedModelByMode.vision = mode === 'vision' ? model.id : undefined;
         loadedModelByMode.audio = mode === 'audio' ? model.id : undefined;
@@ -687,11 +681,14 @@ async function selectAndLoadModel(model: ModelDescriptor): Promise<void> {
     if (!cached) await requestPersistentStorage();
     if (model.mode === 'text') {
       if (loadedModelByMode.text && loadedModelByMode.text !== model.id) {
+        sessionReadyModels.delete(loadedModelByMode.text);
         await textEngine.dispose();
         textEngine = createTextEngine();
       }
       await textEngine.initialize(model, 'webgpu', updateDownloadProgress);
     } else {
+      if (loadedModelByMode.vision) sessionReadyModels.delete(loadedModelByMode.vision);
+      if (loadedModelByMode.audio) sessionReadyModels.delete(loadedModelByMode.audio);
       await mediaEngine.initialize(model, 'webgpu', updateDownloadProgress);
       loadedModelByMode.vision = model.mode === 'vision' ? model.id : undefined;
       loadedModelByMode.audio = model.mode === 'audio' ? model.id : undefined;
@@ -768,7 +765,7 @@ async function handleFile(file: File, kind: 'image' | 'audio' | 'document'): Pro
   emptyState.classList.add('hidden');
   composerDock.classList.remove('hidden');
   renderAttachmentTray();
-  showManualModelPrompt(attachmentMode(kind));
+  syncComposerModelPrompt();
   if (activeMode !== 'text' || sessionReadyModels.has(selectedModel('text').id)) promptInput.focus();
   void finishAttachmentPreparation(attachment, file);
 }
@@ -809,6 +806,8 @@ function isRecoverableGpuError(error: unknown): boolean {
 
 async function releaseMediaRuntime(): Promise<void> {
   if (!loadedModelByMode.vision && !loadedModelByMode.audio) return;
+  if (loadedModelByMode.vision) sessionReadyModels.delete(loadedModelByMode.vision);
+  if (loadedModelByMode.audio) sessionReadyModels.delete(loadedModelByMode.audio);
   await mediaEngine.dispose().catch(() => undefined);
   loadedModelByMode.vision = undefined;
   loadedModelByMode.audio = undefined;
@@ -925,7 +924,7 @@ async function sendTextMessage(prompt: string): Promise<void> {
   await saveUserMessage(finalPrompt);
   if (image) return generateVision(image, finalPrompt, 'vision');
   const model = selectedModel('text');
-  const useThinking = thinkingEnabled && model.supportsThinking === true;
+  const useThinking = model.supportsThinking === true;
   await releaseMediaRuntime();
   const safeContextTokens = Math.min(model.contextTokens, 2_048);
   const context = documentContext(finalPrompt, safeContextTokens);
@@ -1177,12 +1176,6 @@ function bindEvents(): void {
   sendButton.addEventListener('click', () => void sendCurrentMessage());
   stopButton.addEventListener('click', () => { textEngine.cancel(); setBusy(false); showToast('Generation stopped.'); });
   micButton.addEventListener('click', () => void toggleRecording());
-  thinkingToggle.addEventListener('click', () => {
-    if (!selectedModel('text').supportsThinking) return;
-    thinkingEnabled = !thinkingEnabled;
-    thinkingToggle.setAttribute('aria-pressed', String(thinkingEnabled));
-    thinkingToggle.setAttribute('aria-label', thinkingEnabled ? 'Disable thinking' : 'Enable thinking');
-  });
   composerPreparationRetry.addEventListener('click', () => {
     const mode = promptedModelMode ?? failedInlineMode;
     failedInlineMode = null;
