@@ -39,9 +39,10 @@ export class DownloadProgressTracker {
       : observed.percent;
     const nextPercent = complete ? 100 : Math.min(99, calculated);
     this.#lastPercent = Math.max(this.#lastPercent, nextPercent);
+    const finalTotal = observed.total > 0 ? observed.total : expectedTotal;
     return {
-      loaded: complete ? expectedTotal : Math.min(observed.loaded, expectedTotal),
-      total: expectedTotal,
+      loaded: complete ? finalTotal : Math.min(observed.loaded, expectedTotal),
+      total: complete ? finalTotal : expectedTotal,
       percent: this.#lastPercent
     };
   }

@@ -1,93 +1,143 @@
-import { registerSW } from 'virtual:pwa-register';
 import { detectCapabilities, readStorageSnapshot, type CapabilityReport } from './capabilities';
 import { trimConversation } from './context';
-import { createTextEngine, type TextEngine } from './engine-client';
+import { extractDocument, extensionOf, selectRelevantChunks, validateAttachment } from './documents';
+import { createTextEngine, type GenerationResult, type TextEngine } from './engine-client';
+import {
+  clearHistory,
+  createConversation,
+  createMessage,
+  deleteConversation,
+  deriveConversationTitle,
+  getConversation,
+  getConversationAttachments,
+  historyUsage,
+  listConversations,
+  saveAttachment,
+  saveConversation
+} from './history';
 import { renderMarkdown } from './markdown';
 import { createMediaClient, type MediaEngine } from './media-client';
-import { getModel, MODEL_CATALOG, modelSupportsBackend, recommendedModel, TEXT_MODELS } from './models';
+import { getModel, MODEL_CATALOG, modelsForMode, recommendedModel } from './models';
 import { loadPreferences, savePreferences } from './preferences';
-import { RuntimeStateMachine } from './state-machine';
 import {
   formatBytes,
   hasStorageCapacity,
   isModelCached,
-  removeCachedModelId,
   removeModelFromCache,
-  removeStaleModelCache,
   requestPersistentStorage
 } from './storage';
-import type { AppPreferencesV1, ChatMessage, EngineProgress, ModelDescriptor } from './types';
+import type {
+  AppMode,
+  AppPreferencesV2,
+  AttachmentRecordV1,
+  ChatMessage,
+  ConversationRecordV1,
+  EngineProgress,
+  ModelDescriptor,
+  PersistedMessageV1
+} from './types';
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
-  if (!found) throw new Error(`Missing required element #${id}`);
+  if (!found) throw new Error(`Missing interface element: ${id}`);
   return found as T;
 }
 
-const appShell = element<HTMLDivElement>('app-shell');
 const sidebar = element<HTMLElement>('sidebar');
 const sidebarScrim = element<HTMLDivElement>('sidebar-scrim');
+const chatView = element<HTMLElement>('chat-view');
+const settingsView = element<HTMLElement>('settings-view');
 const chatMessages = element<HTMLDivElement>('chat-messages');
-const welcomeCard = element<HTMLDivElement>('welcome-card');
-const setupCard = element<HTMLElement>('setup-card');
-const setupIcon = element<HTMLDivElement>('setup-icon');
-const setupEyebrow = element<HTMLSpanElement>('setup-eyebrow');
-const setupTitle = element<HTMLHeadingElement>('setup-title');
-const setupDescription = element<HTMLParagraphElement>('setup-description');
-const setupProgressTrack = element<HTMLDivElement>('setup-progress-track');
-const setupProgress = element<HTMLDivElement>('setup-progress');
-const setupMeta = element<HTMLDivElement>('setup-meta');
-const setupPrimary = element<HTMLButtonElement>('setup-primary');
-const setupCancel = element<HTMLButtonElement>('setup-cancel');
+const emptyState = element<HTMLElement>('empty-state');
+const emptyIcon = element<HTMLDivElement>('empty-icon');
+const emptyTitle = element<HTMLHeadingElement>('empty-title');
+const emptyDescription = element<HTMLParagraphElement>('empty-description');
+const emptyPrimary = element<HTMLButtonElement>('empty-primary');
+const emptySecondary = element<HTMLButtonElement>('empty-secondary');
+const composerDock = element<HTMLDivElement>('composer-dock');
 const promptInput = element<HTMLTextAreaElement>('prompt-input');
 const sendButton = element<HTMLButtonElement>('send-button');
 const stopButton = element<HTMLButtonElement>('stop-button');
 const micButton = element<HTMLButtonElement>('mic-button');
-const imageInput = element<HTMLInputElement>('image-input');
-const attachmentPreview = element<HTMLDivElement>('attachment-preview');
-const attachmentImage = element<HTMLImageElement>('attachment-image');
-const attachmentName = element<HTMLElement>('attachment-name');
-const onboardingBackdrop = element<HTMLDivElement>('onboarding-backdrop');
-const onboardingDialog = element<HTMLDivElement>('onboarding-dialog');
-const onboardingBackend = element<HTMLElement>('onboarding-backend');
-const onboardingModel = element<HTMLElement>('onboarding-model');
-const onboardingDownload = element<HTMLElement>('onboarding-download');
-const onboardingStorage = element<HTMLElement>('onboarding-storage');
-const onboardingStart = element<HTMLButtonElement>('onboarding-start');
-const preflightMessage = element<HTMLParagraphElement>('preflight-message');
-const onboardingModelPicker = element<HTMLLabelElement>('onboarding-model-picker');
-const onboardingModelSelect = element<HTMLSelectElement>('onboarding-model-select');
-const activeModelName = element<HTMLElement>('active-model-name');
+const attachButton = element<HTMLButtonElement>('attach-button');
+const attachmentMenu = element<HTMLDivElement>('attachment-menu');
+const attachmentTray = element<HTMLDivElement>('attachment-tray');
+const composerPreparation = element<HTMLDivElement>('composer-preparation');
+const composerPreparationLabel = element<HTMLSpanElement>('composer-preparation-label');
+const composerPreparationPercent = element<HTMLElement>('composer-preparation-percent');
+const composerPreparationFill = element<HTMLDivElement>('composer-preparation-fill');
+const composerPreparationRetry = element<HTMLButtonElement>('composer-preparation-retry');
+const fileInput = element<HTMLInputElement>('file-input');
+const composerModeChip = element<HTMLSpanElement>('composer-mode-chip');
 const modelPill = element<HTMLButtonElement>('model-pill');
-const connectionPill = element<HTMLSpanElement>('connection-pill');
-const modelGrid = element<HTMLDivElement>('model-grid');
-const speakToggle = element<HTMLInputElement>('speak-toggle');
+const activeModelName = element<HTMLSpanElement>('active-model-name');
+const recentList = element<HTMLDivElement>('recent-list');
+const recentEmpty = element<HTMLParagraphElement>('recent-empty');
+const historyCount = element<HTMLSpanElement>('history-count');
+const modelModalBackdrop = element<HTMLDivElement>('model-modal-backdrop');
+const modelModal = element<HTMLElement>('model-modal');
+const modelModalTitle = element<HTMLHeadingElement>('model-modal-title');
+const modelModalIntro = element<HTMLParagraphElement>('model-modal-intro');
+const modelList = element<HTMLDivElement>('model-list');
+const downloadPanel = element<HTMLElement>('download-panel');
+const downloadTitle = element<HTMLHeadingElement>('download-title');
+const downloadStage = element<HTMLParagraphElement>('download-stage');
+const downloadModelName = element<HTMLElement>('download-model-name');
+const downloadModelMeta = element<HTMLElement>('download-model-meta');
+const downloadProgress = element<HTMLDivElement>('download-progress');
+const downloadProgressText = element<HTMLParagraphElement>('download-progress-text');
+const cancelDownload = element<HTMLButtonElement>('cancel-download');
+const onboardingBackdrop = element<HTMLDivElement>('onboarding-backdrop');
+const onboardingDialog = element<HTMLElement>('onboarding-dialog');
+const confirmBackdrop = element<HTMLDivElement>('confirm-backdrop');
+const confirmCopy = element<HTMLParagraphElement>('confirm-copy');
 const toastRegion = element<HTMLDivElement>('toast-region');
 
-const machine = new RuntimeStateMachine();
+const ACCEPT_BY_KIND: Record<'image' | 'audio' | 'document', string> = {
+  image: 'image/png,image/jpeg,image/webp',
+  audio: 'audio/wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/webm,.wav,.mp3,.m4a,.webm',
+  document: '.pdf,.docx,.txt,.md,.csv,.json,.html,.htm,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+};
+const SYSTEM_PROMPT = 'You are Aether, a concise private assistant running locally in the browser. Answer directly, stay under 500 tokens, always finish the final sentence, and do not expose hidden reasoning.';
+type PreparedAction = 'image' | 'audio' | 'document' | 'record';
+
 let capabilities: CapabilityReport;
-let preferences: AppPreferencesV1;
-let selectedModel: ModelDescriptor;
-let engine: TextEngine = createTextEngine();
-let mediaClient: MediaEngine | null = null;
-let mediaBusy = false;
-let activeImageContext: { dataUrl: string; name: string } | null = null;
-let lastVisionTurn: { image: { dataUrl: string; name: string }; prompt: string } | null = null;
-let messages: ChatMessage[] = [
-  {
-    role: 'system',
-    content: 'You are Aether, a concise and helpful private assistant running locally in the user’s browser. Do not expose hidden reasoning. Give the answer directly.'
-  }
-];
-let onboardingStep = 1;
-let loadedModelId = '';
-let pendingImage: { dataUrl: string; name: string } | null = null;
-let lastAssistantElement: HTMLElement | null = null;
+let preferences: AppPreferencesV2;
+let activeMode: AppMode = 'text';
+let currentConversation: ConversationRecordV1 | null = null;
+let attachments = new Map<string, AttachmentRecordV1>();
+let pendingAttachmentIds: string[] = [];
+let textEngine: TextEngine = createTextEngine();
+const mediaEngine: MediaEngine = createMediaClient();
+const loadedModelByMode: Partial<Record<AppMode, string>> = {};
+let generating = false;
+let downloading = false;
+let requestedAttachmentKind: PreparedAction | null = null;
+let downloadButtonMode: 'cancel' | 'continue' = 'cancel';
+let loadingModelMode: AppMode | null = null;
+let lastDownloadProgress: EngineProgress | null = null;
 let recorder: MediaRecorder | null = null;
 let recordingStream: MediaStream | null = null;
 let audioContext: AudioContext | null = null;
+let onboardingStep = 1;
+let confirmation: ((accepted: boolean) => void) | null = null;
+const objectUrls = new Set<string>();
+const sessionReadyModels = new Set<string>();
+const processingAttachmentIds = new Set<string>();
+const inlineModelPromises: Partial<Record<AppMode, Promise<boolean>>> = {};
+let failedInlineMode: AppMode | null = null;
+let inlinePreparationVersion = 0;
 
-function showToast(message: string, tone: 'default' | 'success' | 'error' = 'default', duration = 3600): void {
+async function modelIsCached(model: ModelDescriptor): Promise<boolean> {
+  return sessionReadyModels.has(model.id) || await isModelCached(model).catch(() => false);
+}
+
+function selectedModel(mode = activeMode): ModelDescriptor {
+  const selected = getModel(preferences.selectedModelByMode[mode]);
+  return selected?.mode === mode ? selected : recommendedModel(mode);
+}
+
+function showToast(message: string, tone: 'default' | 'success' | 'error' = 'default', duration = 4500): void {
   const toast = document.createElement('div');
   toast.className = `toast ${tone === 'default' ? '' : tone}`;
   toast.textContent = message;
@@ -95,21 +145,61 @@ function showToast(message: string, tone: 'default' | 'success' | 'error' = 'def
   setTimeout(() => toast.remove(), duration);
 }
 
-function setInteractive(ready: boolean): void {
-  promptInput.disabled = !ready;
-  micButton.disabled = !ready || capabilities.backend !== 'webgpu';
-  sendButton.disabled = !ready || (!promptInput.value.trim() && !pendingImage);
+function revokeObjectUrls(): void {
+  for (const url of objectUrls) URL.revokeObjectURL(url);
+  objectUrls.clear();
 }
 
-function setRuntimeState(next: Parameters<RuntimeStateMachine['transition']>[0]): void {
-  if (!machine.canTransition(next)) return;
-  machine.transition(next);
-  document.body.dataset.runtimeState = next;
-  const generating = next === 'generating';
-  stopButton.classList.toggle('hidden', !generating);
-  sendButton.classList.toggle('hidden', generating);
-  setInteractive(next === 'ready');
-  modelPill.classList.toggle('ready', next === 'ready' || next === 'generating');
+function objectUrl(blob: Blob): string {
+  const url = URL.createObjectURL(blob);
+  objectUrls.add(url);
+  return url;
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read the image.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function setBusy(busy: boolean): void {
+  generating = busy;
+  promptInput.disabled = busy;
+  attachButton.disabled = busy;
+  micButton.disabled = busy;
+  sendButton.classList.toggle('hidden', busy);
+  stopButton.classList.toggle('hidden', !busy);
+  updateSendState();
+}
+
+function updateSendState(): void {
+  const hasAudio = pendingAttachmentIds.some((id) => attachments.get(id)?.kind === 'audio');
+  const hasImage = Boolean(primaryImage());
+  const requiredModes = new Set<AppMode>();
+  for (const id of pendingAttachmentIds) {
+    const kind = attachments.get(id)?.kind;
+    if (kind === 'image') requiredModes.add('vision');
+    else if (kind === 'audio') requiredModes.add('audio');
+    else if (kind === 'document') requiredModes.add('text');
+  }
+  if (!requiredModes.size && (activeMode === 'text' || promptInput.value.trim())) requiredModes.add(activeMode);
+  const modelsReady = [...requiredModes].every((mode) => sessionReadyModels.has(selectedModel(mode).id));
+  sendButton.disabled = generating || processingAttachmentIds.size > 0 || !modelsReady || (
+    activeMode === 'audio'
+      ? !hasAudio
+      : activeMode === 'vision'
+        ? !hasImage || (!promptInput.value.trim() && currentConversation?.messages.length !== 0)
+        : !promptInput.value.trim() && pendingAttachmentIds.length === 0
+  );
+}
+
+function resizePrompt(): void {
+  promptInput.style.height = 'auto';
+  promptInput.style.height = `${Math.min(150, promptInput.scrollHeight)}px`;
+  updateSendState();
 }
 
 function closeSidebar(): void {
@@ -117,717 +207,939 @@ function closeSidebar(): void {
   sidebarScrim.classList.remove('active');
 }
 
-function switchView(view: 'chat' | 'models' | 'settings'): void {
-  document.querySelectorAll<HTMLElement>('[data-view-panel]').forEach((panel) => {
-    const active = panel.dataset.viewPanel === view;
-    panel.hidden = !active;
-    panel.classList.toggle('active', active);
-  });
-  document.querySelectorAll<HTMLButtonElement>('[data-view]').forEach((button) => {
-    const active = button.dataset.view === view;
+function showChatView(): void {
+  chatView.hidden = false;
+  chatView.classList.add('active');
+  settingsView.hidden = true;
+  element<HTMLButtonElement>('settings-button').classList.remove('active');
+}
+
+function showSettings(): void {
+  chatView.hidden = true;
+  chatView.classList.remove('active');
+  settingsView.hidden = false;
+  element<HTMLButtonElement>('settings-button').classList.add('active');
+  closeSidebar();
+  void updateSettings();
+}
+
+function updateModeNavigation(): void {
+  document.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((button) => {
+    const active = button.dataset.mode === activeMode;
     button.classList.toggle('active', active);
-    if (active) button.setAttribute('aria-current', 'page');
-    else button.removeAttribute('aria-current');
+    if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
   });
-  element<HTMLElement>('view-title').textContent = view[0]?.toUpperCase() + view.slice(1);
-  if (view === 'models') void renderModels();
-  if (view === 'settings') void updateStorageUI();
+  composerModeChip.textContent = activeMode[0]!.toUpperCase() + activeMode.slice(1);
+  activeModelName.textContent = selectedModel().name;
+}
+
+async function switchMode(mode: AppMode): Promise<void> {
+  if (generating || downloading) return;
+  activeMode = mode;
+  preferences.activeMode = mode;
+  savePreferences(preferences);
+  currentConversation = null;
+  attachments.clear();
+  pendingAttachmentIds = [];
+  revokeObjectUrls();
+  chatMessages.replaceChildren();
+  showChatView();
+  updateModeNavigation();
+  await renderRecents();
+  await renderEmptyState();
   closeSidebar();
 }
 
-function updateConnection(): void {
-  const online = navigator.onLine;
-  connectionPill.classList.toggle('offline', !online);
-  connectionPill.lastChild!.textContent = online ? 'Online' : 'Offline';
+async function renderEmptyState(): Promise<void> {
+  chatMessages.classList.toggle('hidden', !currentConversation?.messages.length);
+  if (currentConversation?.messages.length || attachments.size) {
+    emptyState.classList.add('hidden');
+    composerDock.classList.remove('hidden');
+    return;
+  }
+  emptyState.classList.remove('hidden');
+  composerDock.classList.toggle('hidden', activeMode !== 'text');
+  emptySecondary.classList.add('hidden');
+  if (!capabilities.webgpu) {
+    emptyIcon.textContent = '!';
+    emptyTitle.textContent = 'WebGPU is required';
+    emptyDescription.textContent = 'Aether’s curated LFM2.5 models need a WebGPU-capable desktop Chrome or Edge browser in a secure context.';
+    emptyPrimary.textContent = 'Check again';
+    emptyPrimary.dataset.action = 'recheck';
+    return;
+  }
+  emptyIcon.textContent = activeMode === 'text' ? '◌' : activeMode === 'vision' ? '◉' : '●';
+  if (activeMode === 'vision') {
+    emptyTitle.textContent = 'Choose an image';
+    emptyDescription.textContent = 'Select an image immediately. Its local model prepares afterward.';
+    emptyPrimary.textContent = 'Select image';
+    emptyPrimary.dataset.action = 'image';
+  } else if (activeMode === 'audio') {
+    emptyTitle.textContent = 'Start a voice conversation';
+    emptyDescription.textContent = 'Record or choose audio immediately. Its local model prepares afterward.';
+    emptyPrimary.textContent = 'Record audio';
+    emptyPrimary.dataset.action = 'record';
+    emptySecondary.textContent = 'Choose audio file';
+    emptySecondary.dataset.action = 'audio';
+    emptySecondary.classList.remove('hidden');
+  } else {
+    emptyTitle.textContent = 'How can I help?';
+    emptyDescription.textContent = 'Ask a question or attach an image, audio recording, or document.';
+    emptyPrimary.textContent = 'Start typing';
+    emptyPrimary.dataset.action = 'focus';
+  }
 }
 
-function updateSelectedModelUI(): void {
-  activeModelName.textContent = selectedModel.name;
-  onboardingModel.textContent = selectedModel.name;
-  onboardingDownload.textContent = formatBytes(selectedModel.downloadBytes);
-  preferences.selectedModelId = selectedModel.id;
-  preferences.backend = capabilities.backend;
+async function ensureConversation(): Promise<ConversationRecordV1> {
+  if (currentConversation) return currentConversation;
+  currentConversation = createConversation(activeMode, selectedModel().id);
+  return currentConversation;
+}
+
+async function persistCurrent(fallbackName?: string): Promise<void> {
+  if (!currentConversation) return;
+  currentConversation.selectedModelId = selectedModel().id;
+  currentConversation.updatedAt = Date.now();
+  currentConversation.title = deriveConversationTitle(currentConversation, fallbackName);
+  await saveConversation(currentConversation);
+  await renderRecents();
+}
+
+async function renderRecents(): Promise<void> {
+  const conversations = await listConversations(activeMode).catch(() => []);
+  recentList.replaceChildren();
+  recentEmpty.classList.toggle('hidden', conversations.length > 0);
+  historyCount.textContent = conversations.length ? String(conversations.length) : '';
+  for (const conversation of conversations) {
+    const row = document.createElement('div');
+    row.className = `recent-item ${currentConversation?.id === conversation.id ? 'active' : ''}`;
+    const open = document.createElement('button');
+    open.className = 'recent-open';
+    open.innerHTML = `<span>◯</span><span></span>`;
+    open.lastElementChild!.textContent = conversation.title;
+    open.addEventListener('click', () => void openConversation(conversation.id));
+    const remove = document.createElement('button');
+    remove.className = 'recent-delete';
+    remove.textContent = '×';
+    remove.setAttribute('aria-label', `Delete ${conversation.title}`);
+    remove.addEventListener('click', async () => {
+      if (!await confirmAction(`Delete “${conversation.title}” and all of its local attachments?`)) return;
+      await deleteConversation(conversation.id);
+      if (currentConversation?.id === conversation.id) await startNewConversation();
+      else await renderRecents();
+      showToast('Conversation deleted.', 'success');
+    });
+    row.append(open, remove);
+    recentList.append(row);
+  }
+}
+
+async function openConversation(id: string): Promise<void> {
+  const conversation = await getConversation(id);
+  if (!conversation) return showToast('This local conversation could not be found.', 'error');
+  activeMode = conversation.mode;
+  preferences.activeMode = activeMode;
+  if (getModel(conversation.selectedModelId)?.mode === activeMode) preferences.selectedModelByMode[activeMode] = conversation.selectedModelId;
   savePreferences(preferences);
+  currentConversation = conversation;
+  const storedAttachments = await getConversationAttachments(id);
+  attachments = new Map(storedAttachments.map((attachment) => [attachment.id, attachment]));
+  pendingAttachmentIds = [];
+  showChatView();
+  updateModeNavigation();
+  await renderConversation();
+  await renderRecents();
+  closeSidebar();
 }
 
-function selectModel(model: ModelDescriptor): void {
-  if (!modelSupportsBackend(model, capabilities.backend)) {
-    showToast(`${model.name} requires WebGPU on this device.`, 'error');
-    return;
-  }
-  selectedModel = model;
-  updateSelectedModelUI();
-  void renderModels();
-  void refreshSetupCard();
+async function startNewConversation(mode = activeMode): Promise<void> {
+  activeMode = mode;
+  currentConversation = null;
+  attachments.clear();
+  pendingAttachmentIds = [];
+  revokeObjectUrls();
+  chatMessages.replaceChildren();
+  promptInput.value = '';
+  resizePrompt();
+  updateModeNavigation();
+  await renderRecents();
+  await renderEmptyState();
+  showChatView();
 }
 
-async function refreshSetupCard(): Promise<void> {
-  const cached = await isModelCached(selectedModel);
-  if (machine.state === 'ready' || machine.state === 'generating') {
-    setupCard.classList.add('hidden');
-    return;
-  }
-  setupCard.classList.remove('hidden');
-  setupIcon.textContent = cached ? '✓' : '↓';
-  setupEyebrow.textContent = cached ? 'CACHED MODEL' : 'LOCAL MODEL';
-  setupTitle.textContent = cached ? `${selectedModel.name} is stored locally` : 'Your model is ready to download';
-  setupDescription.textContent = cached
-    ? 'Load the cached model into memory to begin a private session.'
-    : `Download ${selectedModel.name} once. Prompts stay on this device.`;
-  setupMeta.textContent = `${capabilities.backend === 'webgpu' ? 'WebGPU acceleration' : 'WASM · slower CPU mode'} · ${formatBytes(selectedModel.downloadBytes)} · ${selectedModel.license}`;
-  setupPrimary.textContent = cached ? 'Load model' : 'Download & start';
-  setupPrimary.disabled = false;
-  setupProgressTrack.hidden = true;
-  setupCancel.classList.add('hidden');
+async function renderConversation(): Promise<void> {
+  revokeObjectUrls();
+  chatMessages.replaceChildren();
+  if (!currentConversation) return renderEmptyState();
+  chatMessages.classList.remove('hidden');
+  for (const message of currentConversation.messages) await appendMessageElement(message);
+  emptyState.classList.add('hidden');
+  composerDock.classList.remove('hidden');
+  renderAttachmentTray();
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  updateSendState();
 }
 
-function updateSetupProgress(progress: EngineProgress): void {
-  setRuntimeState(progress.status === 'warming' ? 'warming' : 'downloading');
-  setupCard.classList.remove('hidden');
-  setupProgressTrack.hidden = false;
-  setupProgress.style.width = `${progress.percent}%`;
-  setupEyebrow.textContent = progress.status === 'warming' ? 'PREPARING MODEL' : 'DOWNLOADING MODEL';
-  setupTitle.textContent = progress.status === 'warming' ? 'Warming up the local engine' : `Downloading ${selectedModel.name}`;
-  setupDescription.textContent = progress.file ? `Preparing ${progress.file.split('/').at(-1)}` : 'Preparing model files…';
-  setupMeta.textContent = progress.total > 0
-    ? `${formatBytes(progress.loaded)} of ${formatBytes(progress.total)} · ${progress.percent}%`
-    : `${progress.percent}% complete`;
-  setupPrimary.disabled = true;
-  setupCancel.classList.remove('hidden');
-}
-
-function showSetupError(error: unknown): void {
-  setRuntimeState('error');
-  const message = error instanceof Error ? error.message : String(error);
-  setupCard.classList.remove('hidden');
-  setupIcon.textContent = '!';
-  setupEyebrow.textContent = 'SETUP NEEDS ATTENTION';
-  setupTitle.textContent = 'The local model could not start';
-  setupDescription.textContent = message;
-  setupMeta.textContent = navigator.onLine ? 'Retry or choose a smaller model.' : 'Reconnect to download a model that is not already cached.';
-  setupProgressTrack.hidden = true;
-  setupPrimary.disabled = false;
-  setupPrimary.textContent = 'Retry setup';
-  setupCancel.classList.add('hidden');
-  showToast(message, 'error', 6000);
-}
-
-async function prepareModel(userInitiated: boolean): Promise<void> {
-  try {
-    setRuntimeState('preflight');
-    setupCard.classList.remove('hidden');
-    setupPrimary.disabled = true;
-    const cached = await isModelCached(selectedModel);
-    const storage = await readStorageSnapshot();
-    if (!cached && !navigator.onLine) throw new Error('This model is not cached yet. Reconnect once to download it.');
-    if (!cached && !hasStorageCapacity(storage, selectedModel)) {
-      throw new Error(`Not enough browser storage. Free at least ${formatBytes(selectedModel.downloadBytes * 1.25)} and try again.`);
-    }
-    if (userInitiated) void requestPersistentStorage();
-    await engine.initialize(selectedModel, capabilities.backend, updateSetupProgress);
-    loadedModelId = selectedModel.id;
-    setRuntimeState('ready');
-    setupCard.classList.add('hidden');
-    welcomeCard.classList.remove('hidden');
-    preferences.onboardingComplete = true;
-    savePreferences(preferences);
-    updateSelectedModelUI();
-    await Promise.all([renderModels(), updateStorageUI()]);
-    promptInput.focus();
-    showToast(`${selectedModel.name} is ready.`, 'success');
-  } catch (error) {
-    if (error instanceof Error && (error as Error & { code?: string }).code === 'CANCELLED') {
-      setRuntimeState('preflight');
-      await refreshSetupCard();
-      showToast('Model setup cancelled.');
-      return;
-    }
-    showSetupError(error);
-  }
-}
-
-function appendUserMessage(text: string, image?: string): void {
-  welcomeCard.classList.add('hidden');
+async function appendMessageElement(message: PersistedMessageV1): Promise<HTMLElement> {
   const row = document.createElement('article');
-  row.className = 'message user';
+  row.className = `message-row ${message.role}`;
   const bubble = document.createElement('div');
   bubble.className = 'message-bubble';
-  if (image) {
-    const preview = document.createElement('img');
-    preview.src = image;
-    preview.alt = 'Attached image';
-    preview.style.cssText = 'display:block;max-width:240px;max-height:180px;object-fit:cover;border-radius:10px;margin-bottom:8px';
-    bubble.append(preview);
+  for (const attachmentId of message.attachmentIds) {
+    const attachment = attachments.get(attachmentId);
+    if (!attachment) continue;
+    if (attachment.kind === 'image') {
+      const image = document.createElement('img');
+      image.className = 'message-media';
+      image.src = objectUrl(attachment.blob);
+      image.alt = attachment.name;
+      bubble.append(image);
+    } else if (attachment.kind === 'audio' || attachment.kind === 'generated-audio') {
+      const audio = document.createElement('audio');
+      audio.className = 'message-audio';
+      audio.controls = true;
+      audio.src = objectUrl(attachment.blob);
+      bubble.append(audio);
+    } else {
+      const file = document.createElement('div');
+      file.className = 'message-file';
+      file.textContent = `▤ ${attachment.name}`;
+      bubble.append(file);
+    }
   }
-  const paragraph = document.createElement('p');
-  paragraph.textContent = text || 'Describe this image.';
-  paragraph.style.margin = '0';
-  bubble.append(paragraph);
+  const content = document.createElement('div');
+  content.className = 'message-content';
+  content.innerHTML = message.role === 'assistant' ? renderMarkdown(message.text) : '';
+  if (message.role === 'user') content.textContent = message.text;
+  bubble.append(content);
+  if (message.role === 'assistant') {
+    const actions = document.createElement('div');
+    actions.className = 'message-actions';
+    const copy = document.createElement('button');
+    copy.textContent = 'Copy';
+    copy.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(message.text);
+      showToast('Copied.', 'success');
+    });
+    const meta = document.createElement('span');
+    meta.textContent = message.metadata?.stopped ? 'Stopped' : message.metadata?.tokenCount
+      ? `${message.metadata.tokenCount} tokens · ${((message.metadata.elapsedMs ?? 0) / 1000).toFixed(1)}s`
+      : selectedModel().name;
+    actions.append(copy, meta);
+    bubble.append(actions);
+  }
   row.append(bubble);
   chatMessages.append(row);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return row;
 }
 
-interface AssistantMessageView {
-  row: HTMLElement;
-  content: HTMLElement;
-  meta: HTMLElement;
+function renderAttachmentTray(): void {
+  attachmentTray.replaceChildren();
+  for (const id of pendingAttachmentIds) {
+    const attachment = attachments.get(id);
+    if (!attachment) continue;
+    const chip = document.createElement('div');
+    chip.className = 'attachment-chip';
+    const label = document.createElement('span');
+    label.textContent = attachment.name;
+    const remove = document.createElement('button');
+    remove.textContent = '×';
+    remove.setAttribute('aria-label', `Remove ${attachment.name}`);
+    remove.addEventListener('click', () => {
+      pendingAttachmentIds = pendingAttachmentIds.filter((candidate) => candidate !== id);
+      attachments.delete(id);
+      renderAttachmentTray();
+      updateSendState();
+    });
+    chip.append(label, remove);
+    attachmentTray.append(chip);
+  }
 }
 
-function createAssistantMessage(): AssistantMessageView {
-  const row = document.createElement('article');
-  row.className = 'message assistant';
-  const avatar = document.createElement('div');
-  avatar.className = 'message-avatar';
-  avatar.textContent = '✦';
-  const bubble = document.createElement('div');
-  bubble.className = 'message-bubble';
-  const content = document.createElement('div');
-  content.className = 'response-content';
-  content.innerHTML = '<span class="typing-dots" aria-label="Generating"><i></i><i></i><i></i></span>';
-  const actions = document.createElement('div');
-  actions.className = 'message-actions';
-  const meta = document.createElement('span');
-  meta.className = 'generation-meta';
-  actions.append(meta);
-  bubble.append(content, actions);
-  row.append(avatar, bubble);
-  chatMessages.append(row);
+function primaryImage(): AttachmentRecordV1 | undefined {
+  return [...attachments.values()].filter((attachment) => attachment.kind === 'image').at(-1);
+}
+
+async function renderModels(): Promise<void> {
+  modelList.replaceChildren();
+  const mode = activeMode;
+  const models = modelsForMode(mode);
+  const states = await Promise.all(models.map(async (model) => ({ model, cached: await modelIsCached(model) })));
+  for (const { model, cached } of states) {
+    const card = document.createElement('article');
+    card.className = `model-entry ${selectedModel().id === model.id ? 'selected' : ''}`;
+    const copy = document.createElement('div');
+    copy.innerHTML = `<h3></h3><p></p><div class="model-meta"></div>`;
+    copy.querySelector('h3')!.textContent = model.name;
+    copy.querySelector('p')!.textContent = model.description;
+    const meta = copy.querySelector('.model-meta')!;
+    for (const value of [formatBytes(model.downloadBytes), model.license, 'WebGPU', cached ? 'Downloaded' : 'Not downloaded']) {
+      const badge = document.createElement('span'); badge.textContent = value; meta.append(badge);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'model-entry-actions';
+    const choose = document.createElement('button');
+    choose.textContent = cached ? (selectedModel().id === model.id ? 'Use model' : 'Select') : 'Download';
+    choose.addEventListener('click', () => void selectAndLoadModel(model));
+    actions.append(choose);
+    if (cached) {
+      const remove = document.createElement('button');
+      remove.className = 'remove-model';
+      remove.textContent = 'Remove';
+      remove.addEventListener('click', async () => {
+        if (!await confirmAction(`Remove the downloaded files for ${model.name}?`)) return;
+        await removeModelFromCache(model);
+        sessionReadyModels.delete(model.id);
+        if (loadedModelByMode[mode] === model.id) loadedModelByMode[mode] = undefined;
+        showToast(`${model.name} removed.`, 'success');
+        await renderModels();
+        await renderEmptyState();
+      });
+      actions.append(remove);
+    }
+    card.append(copy, actions);
+    modelList.append(card);
+  }
+}
+
+async function openModelPicker(): Promise<void> {
+  if (!capabilities.webgpu) return renderEmptyState();
+  modelModalTitle.textContent = `Choose ${activeMode} model`;
+  modelModalIntro.textContent = `Only curated, pinned LFM2.5 ${activeMode} models are shown.`;
+  downloadPanel.classList.add('hidden');
+  modelList.classList.remove('hidden');
+  await renderModels();
+  modelModalBackdrop.classList.remove('hidden');
+  modelModal.querySelector<HTMLElement>('button')?.focus();
+}
+
+function closeModelPicker(): void {
+  if (downloading) return;
+  if (downloadButtonMode === 'continue') {
+    requestedAttachmentKind = null;
+    downloadButtonMode = 'cancel';
+  }
+  modelModalBackdrop.classList.add('hidden');
+}
+
+function updateDownloadProgress(progress: EngineProgress): void {
+  lastDownloadProgress = progress;
+  downloadStage.textContent = progress.status === 'warming' ? 'Preparing the local runtime…' : `Downloading ${progress.file ?? 'model files'}…`;
+  downloadProgress.style.width = `${progress.percent}%`;
+  downloadProgressText.textContent = `${formatBytes(progress.loaded)} of ${formatBytes(progress.total)} · ${progress.percent}%`;
+}
+
+function completedDownloadProgress(): EngineProgress | null {
+  return lastDownloadProgress;
+}
+
+function updateInlineProgress(model: ModelDescriptor, progress: EngineProgress): void {
+  composerPreparation.classList.remove('hidden');
+  composerPreparationRetry.classList.add('hidden');
+  composerPreparationLabel.textContent = progress.status === 'warming'
+    ? `Preparing ${model.name}…`
+    : `Loading ${model.name} · ${formatBytes(progress.loaded)} of ${formatBytes(progress.total)}`;
+  composerPreparationPercent.textContent = `${progress.percent}%`;
+  composerPreparationFill.style.width = `${progress.percent}%`;
+  updateSendState();
+}
+
+function attachmentMode(kind: AttachmentRecordV1['kind']): AppMode {
+  if (kind === 'image') return 'vision';
+  if (kind === 'audio' || kind === 'generated-audio') return 'audio';
+  return 'text';
+}
+
+async function prepareModelInline(mode: AppMode): Promise<boolean> {
+  const model = selectedModel(mode);
+  if (loadedModelByMode[mode] === model.id) {
+    sessionReadyModels.add(model.id);
+    updateSendState();
+    return true;
+  }
+  const existing = inlineModelPromises[mode];
+  if (existing) return existing;
+  const version = ++inlinePreparationVersion;
+  const task = (async () => {
+    try {
+      const cached = await modelIsCached(model);
+      const snapshot = await readStorageSnapshot();
+      if (!cached && !navigator.onLine) throw new Error('Connect to the internet to download this model.');
+      if (!cached && !hasStorageCapacity(snapshot, model)) {
+        throw new Error(`${model.name} needs about ${formatBytes(model.downloadBytes * 1.25)} free.`);
+      }
+      if (!cached) await requestPersistentStorage();
+      updateInlineProgress(model, { status: 'downloading', loaded: 0, total: model.downloadBytes, percent: 0, file: 'Starting…' });
+      const onProgress = (progress: EngineProgress) => {
+        if (version === inlinePreparationVersion) updateInlineProgress(model, progress);
+      };
+      if (mode === 'text') {
+        if (loadedModelByMode.text && loadedModelByMode.text !== model.id) {
+          await textEngine.dispose();
+          textEngine = createTextEngine();
+        }
+        await textEngine.initialize(model, 'webgpu', onProgress);
+      } else {
+        await mediaEngine.initialize(model, 'webgpu', onProgress);
+        loadedModelByMode.vision = mode === 'vision' ? model.id : undefined;
+        loadedModelByMode.audio = mode === 'audio' ? model.id : undefined;
+      }
+      loadedModelByMode[mode] = model.id;
+      sessionReadyModels.add(model.id);
+      failedInlineMode = null;
+      if (version === inlinePreparationVersion) {
+        composerPreparationLabel.textContent = `${model.name} is ready`;
+        composerPreparationPercent.textContent = '100%';
+        composerPreparationFill.style.width = '100%';
+      }
+      return true;
+    } catch (error) {
+      failedInlineMode = mode;
+      const message = error instanceof Error ? error.message : String(error);
+      composerPreparation.classList.remove('hidden');
+      composerPreparationLabel.textContent = 'Model loading failed';
+      composerPreparationPercent.textContent = '';
+      composerPreparationRetry.classList.remove('hidden');
+      showToast(`Model setup failed: ${message}`, 'error', 8000);
+      return false;
+    } finally {
+      delete inlineModelPromises[mode];
+      updateSendState();
+      if (!failedInlineMode) setTimeout(() => {
+        if (!Object.keys(inlineModelPromises).length && !processingAttachmentIds.size) composerPreparation.classList.add('hidden');
+      }, 900);
+    }
+  })();
+  inlineModelPromises[mode] = task;
+  updateSendState();
+  return task;
+}
+
+async function selectAndLoadModel(model: ModelDescriptor): Promise<void> {
+  if (downloading) return;
+  const snapshot = await readStorageSnapshot();
+  const cached = await modelIsCached(model);
+  if (!cached && !navigator.onLine) return showToast('Connect to the internet to download this model.', 'error');
+  if (!cached && !hasStorageCapacity(snapshot, model)) {
+    return showToast(`Not enough storage. ${model.name} needs about ${formatBytes(model.downloadBytes * 1.25)} free.`, 'error', 7000);
+  }
+  downloading = true;
+  loadingModelMode = model.mode;
+  lastDownloadProgress = null;
+  downloadButtonMode = 'cancel';
+  cancelDownload.textContent = 'Cancel';
+  cancelDownload.classList.remove('primary-action');
+  cancelDownload.classList.add('secondary-action');
+  preferences.selectedModelByMode[model.mode] = model.id;
+  savePreferences(preferences);
+  updateModeNavigation();
+  modelList.classList.add('hidden');
+  downloadPanel.classList.remove('hidden');
+  modelModalTitle.textContent = `Prepare ${model.mode} model`;
+  modelModalBackdrop.classList.remove('hidden');
+  downloadTitle.textContent = cached ? 'Prepare selected model' : 'Download selected model';
+  downloadModelName.textContent = model.name;
+  downloadModelMeta.textContent = `${formatBytes(model.downloadBytes)} · ${model.license}`;
+  downloadProgress.style.width = '0%';
+  downloadProgressText.textContent = cached ? 'Reading from browser cache…' : `0 B of ${formatBytes(model.downloadBytes)} · 0%`;
+  downloadStage.textContent = cached ? 'Preparing…' : 'Starting download…';
+  try {
+    if (!cached) await requestPersistentStorage();
+    if (model.mode === 'text') {
+      if (loadedModelByMode.text && loadedModelByMode.text !== model.id) {
+        await textEngine.dispose();
+        textEngine = createTextEngine();
+      }
+      await textEngine.initialize(model, 'webgpu', updateDownloadProgress);
+    } else {
+      await mediaEngine.initialize(model, 'webgpu', updateDownloadProgress);
+      loadedModelByMode.vision = model.mode === 'vision' ? model.id : undefined;
+      loadedModelByMode.audio = model.mode === 'audio' ? model.id : undefined;
+    }
+    loadedModelByMode[model.mode] = model.id;
+    sessionReadyModels.add(model.id);
+    const completedProgress = completedDownloadProgress();
+    const finalLoaded = completedProgress?.loaded || model.downloadBytes;
+    const finalTotal = completedProgress?.total || finalLoaded;
+    downloadProgress.style.width = '100%';
+    downloadProgressText.textContent = `${formatBytes(finalTotal)} of ${formatBytes(finalTotal)} · 100%`;
+    downloadStage.textContent = 'Ready on this device.';
+    showToast(`${model.name} is ready.`, 'success');
+    downloading = false;
+    loadingModelMode = null;
+    await renderEmptyState();
+    if (requestedAttachmentKind) {
+      const labels: Record<PreparedAction, string> = { image: 'Choose image', audio: 'Choose audio file', document: 'Choose document', record: 'Start recording' };
+      downloadButtonMode = 'continue';
+      downloadTitle.textContent = 'Model ready';
+      downloadStage.textContent = 'Continue when you are ready.';
+      cancelDownload.textContent = labels[requestedAttachmentKind];
+      cancelDownload.classList.remove('secondary-action');
+      cancelDownload.classList.add('primary-action');
+    } else {
+      modelModalBackdrop.classList.add('hidden');
+    }
+  } catch (error) {
+    downloading = false;
+    loadingModelMode = null;
+    const message = error instanceof Error ? error.message : String(error);
+    downloadStage.textContent = 'Download could not finish.';
+    showToast(`Model setup failed: ${message}`, 'error', 8000);
+    modelList.classList.remove('hidden');
+    downloadPanel.classList.add('hidden');
+    await renderModels();
+  }
+}
+
+async function ensureModel(mode: AppMode): Promise<boolean> {
+  return prepareModelInline(mode);
+}
+
+async function beginAttachment(kind: 'image' | 'audio' | 'document'): Promise<void> {
+  attachmentMenu.classList.add('hidden');
+  attachButton.setAttribute('aria-expanded', 'false');
+  openFilePicker(kind);
+}
+
+function openFilePicker(kind: 'image' | 'audio' | 'document'): void {
+  fileInput.accept = ACCEPT_BY_KIND[kind];
+  fileInput.dataset.kind = kind;
+  fileInput.value = '';
+  fileInput.click();
+}
+
+async function handleFile(file: File, kind: 'image' | 'audio' | 'document'): Promise<void> {
+  const error = validateAttachment(file, attachments.size);
+  if (error) return showToast(error, 'error');
+  const conversation = await ensureConversation();
+  const attachment: AttachmentRecordV1 = {
+    id: crypto.randomUUID(), version: 1, conversationId: conversation.id, kind,
+    name: file.name, mimeType: file.type || `application/${extensionOf(file.name)}`, size: file.size,
+    blob: file, createdAt: Date.now()
+  };
+  await saveAttachment(attachment);
+  attachments.set(attachment.id, attachment);
+  pendingAttachmentIds.push(attachment.id);
+  processingAttachmentIds.add(attachment.id);
+  await persistCurrent(file.name);
+  emptyState.classList.add('hidden');
+  composerDock.classList.remove('hidden');
+  renderAttachmentTray();
+  updateSendState();
+  promptInput.focus();
+  void finishAttachmentPreparation(attachment, file);
+}
+
+async function finishAttachmentPreparation(attachment: AttachmentRecordV1, file: File): Promise<void> {
+  const modelPromise = prepareModelInline(attachmentMode(attachment.kind));
+  try {
+    if (attachment.kind === 'document') {
+      showToast(`Reading ${file.name} locally…`);
+      const extracted = await extractDocument(file);
+      attachment.extractedText = extracted.text;
+      attachment.chunks = extracted.chunks;
+      attachment.pageCount = extracted.pageCount;
+      await saveAttachment(attachment);
+    }
+    await modelPromise;
+  } catch (extractError) {
+    showToast(extractError instanceof Error ? extractError.message : String(extractError), 'error', 7000);
+  } finally {
+    processingAttachmentIds.delete(attachment.id);
+    updateSendState();
+  }
+}
+
+function documentContext(query: string, contextTokens: number): string {
+  const documents = [...attachments.values()].filter((attachment) => attachment.kind === 'document' && attachment.chunks?.length);
+  if (!documents.length) return '';
+  const budget = Math.floor(contextTokens * 4 * 0.5);
+  const each = Math.max(1_200, Math.floor(budget / documents.length));
+  return documents.map((document) => {
+    const selected = selectRelevantChunks(document.chunks ?? [], query, each);
+    return `Document: ${document.name}\n${selected.map((chunk) => chunk.text).join('\n\n')}`;
+  }).join('\n\n---\n\n');
+}
+
+function isRecoverableGpuError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /MapAsync|Invalid Buffer|OrtRun|BufferManager|device lost|GPUBuffer/i.test(message);
+}
+
+async function releaseMediaRuntime(): Promise<void> {
+  if (!loadedModelByMode.vision && !loadedModelByMode.audio) return;
+  await mediaEngine.dispose().catch(() => undefined);
+  loadedModelByMode.vision = undefined;
+  loadedModelByMode.audio = undefined;
+}
+
+async function generateTextWithRecovery(
+  messages: ChatMessage[],
+  model: ModelDescriptor,
+  onToken: (text: string, tokenCount: number, elapsedMs: number) => void,
+  onRecover: () => void
+): Promise<GenerationResult> {
+  try {
+    return await textEngine.generate(messages, 640, onToken);
+  } catch (error) {
+    if (!isRecoverableGpuError(error)) throw error;
+    onRecover();
+    await textEngine.dispose().catch(() => undefined);
+    textEngine = createTextEngine();
+    loadedModelByMode.text = undefined;
+    sessionReadyModels.delete(model.id);
+    if (!await prepareModelInline('text')) throw new Error('The local GPU session could not be restored. Close other GPU-heavy tabs and retry.', { cause: error });
+    return textEngine.generate(messages, 640, onToken);
+  }
+}
+
+function runtimeMessages(extraSystem = ''): ChatMessage[] {
+  const persisted = currentConversation?.messages.map(({ role, text }) => ({ role, content: text } as ChatMessage)) ?? [];
+  return [{ role: 'system', content: `${SYSTEM_PROMPT}${extraSystem ? `\n\n${extraSystem}` : ''}` }, ...persisted];
+}
+
+async function sendCurrentMessage(): Promise<void> {
+  if (generating || downloading) return;
+  const prompt = promptInput.value.trim();
+  if (activeMode === 'vision') return sendVisionMessage(prompt);
+  if (activeMode === 'audio') return sendAudioMessage(prompt);
+  return sendTextMessage(prompt);
+}
+
+async function saveUserMessage(text: string, attachmentIds = pendingAttachmentIds): Promise<PersistedMessageV1> {
+  const conversation = await ensureConversation();
+  const message = createMessage('user', text, selectedModel().id, [...attachmentIds]);
+  conversation.messages.push(message);
+  pendingAttachmentIds = [];
+  promptInput.value = '';
+  resizePrompt();
+  await persistCurrent(attachmentIds[0] ? attachments.get(attachmentIds[0])?.name : undefined);
+  await renderConversation();
+  return message;
+}
+
+async function saveAssistantMessage(
+  text: string,
+  attachmentIds: string[] = [],
+  metadata?: PersistedMessageV1['metadata'],
+  modelId = selectedModel().id
+): Promise<void> {
+  if (!currentConversation) return;
+  const message = createMessage('assistant', text, modelId, attachmentIds);
+  message.metadata = metadata;
+  currentConversation.messages.push(message);
+  await persistCurrent();
+  await renderConversation();
+}
+
+function createStreamingAssistant(label: string): { row: HTMLElement; content: HTMLElement; meta: HTMLElement } {
+  const row = document.createElement('article'); row.className = 'message-row assistant';
+  const bubble = document.createElement('div'); bubble.className = 'message-bubble';
+  const content = document.createElement('div'); content.className = 'message-content'; content.textContent = label;
+  const actions = document.createElement('div'); actions.className = 'message-actions';
+  const meta = document.createElement('span'); actions.append(meta); bubble.append(content, actions); row.append(bubble); chatMessages.append(row);
   chatMessages.scrollTop = chatMessages.scrollHeight;
-  lastAssistantElement = row;
   return { row, content, meta };
 }
 
-function decorateAnswer(row: HTMLElement, text: string): void {
-  const actions = row.querySelector<HTMLElement>('.message-actions');
-  if (!actions || actions.querySelector('button')) return;
-  const copy = document.createElement('button');
-  copy.textContent = 'Copy';
-  copy.addEventListener('click', async () => {
-    await navigator.clipboard.writeText(text);
-    showToast('Response copied.', 'success');
-  });
-  const regenerate = document.createElement('button');
-  regenerate.textContent = 'Regenerate';
-  regenerate.addEventListener('click', () => void regenerateLast());
-  actions.prepend(copy, regenerate);
-  row.querySelectorAll<HTMLAnchorElement>('a').forEach((link) => {
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-  });
-}
-
-async function runGeneration(inputMessages: ChatMessage[]): Promise<void> {
-  const assistant = createAssistantMessage();
-  setRuntimeState('generating');
-  try {
-    const result = await engine.generate(inputMessages, 512, (text, tokens, elapsedMs) => {
-      if (text) assistant.content.innerHTML = renderMarkdown(text);
-      assistant.meta.textContent = `${tokens} tokens · ${(elapsedMs / 1000).toFixed(1)}s`;
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    });
-    const answer = result.text.trim() || (result.cancelled ? 'Generation stopped.' : 'No response was generated.');
-    assistant.content.innerHTML = renderMarkdown(answer);
-    const tps = result.elapsedMs > 0 ? result.tokenCount / (result.elapsedMs / 1000) : 0;
-    assistant.meta.textContent = result.cancelled
-      ? 'Stopped'
-      : `${result.tokenCount} tokens · ${tps.toFixed(1)} tok/s · ${(result.elapsedMs / 1000).toFixed(1)}s`;
-    decorateAnswer(assistant.row, answer);
-    if (!result.cancelled) messages.push({ role: 'assistant', content: answer });
-    setRuntimeState('ready');
-    if (preferences.speakResponses && !result.cancelled) void speakAnswer(answer);
-  } catch (error) {
-    assistant.content.innerHTML = renderMarkdown(`**Local engine error:** ${error instanceof Error ? error.message : String(error)}`);
-    assistant.meta.textContent = 'Retry available';
-    decorateAnswer(assistant.row, '');
-    setRuntimeState('error');
-    showSetupError(error);
+async function sendTextMessage(prompt: string): Promise<void> {
+  if (!prompt && !pendingAttachmentIds.length) return;
+  let finalPrompt = prompt || 'Summarize the attached content.';
+  const audioAttachment = pendingAttachmentIds.map((id) => attachments.get(id)).find((attachment) => attachment?.kind === 'audio');
+  const image = pendingAttachmentIds.map((id) => attachments.get(id)).find((attachment) => attachment?.kind === 'image') ?? primaryImage();
+  if (audioAttachment) {
+    if (!await ensureModel('audio')) return;
+    const decoded = await decodeAudio(audioAttachment.blob);
+    showToast('Transcribing the attached audio locally…');
+    const transcript = await mediaEngine.transcribe(decoded.samples, decoded.sampleRate, 'webgpu');
+    finalPrompt = `${finalPrompt}\n\nAudio transcript:\n${transcript}`;
   }
-}
-
-async function sendMessage(): Promise<void> {
-  if (machine.state !== 'ready' || mediaBusy) return;
-  const prompt = promptInput.value.trim();
-  if (!prompt && !pendingImage) return;
-  const image = pendingImage;
-  appendUserMessage(prompt, image?.dataUrl);
-  promptInput.value = '';
-  resizePrompt();
-  clearAttachment();
-
   if (image) {
-    await processImageMessage(image, prompt || 'Describe this image.');
-    return;
-  }
-
-  if (activeImageContext) {
-    await processImageMessage(activeImageContext, prompt);
-    return;
-  }
-
-  lastVisionTurn = null;
-  messages.push({ role: 'user', content: prompt });
-  const trimmed = trimConversation(messages, selectedModel.contextTokens);
-  if (trimmed.trimmed) showToast('Older turns were left out to fit this model’s context.');
-  await runGeneration(trimmed.messages);
+    if (!await ensureModel('vision')) return;
+  } else if (!await ensureModel('text')) return;
+  await saveUserMessage(finalPrompt);
+  if (image) return generateVision(image, finalPrompt, 'vision');
+  const model = selectedModel('text');
+  await releaseMediaRuntime();
+  const safeContextTokens = Math.min(model.contextTokens, 2_048);
+  const context = documentContext(finalPrompt, safeContextTokens);
+  const trimmed = trimConversation(runtimeMessages(context ? `Use these local document excerpts when relevant:\n\n${context}` : ''), safeContextTokens);
+  if (trimmed.trimmed) showToast('Older turns were left out to fit the model context.');
+  const streaming = createStreamingAssistant('Thinking locally…');
+  setBusy(true);
+  try {
+    let lastPaint = 0;
+    const result = await generateTextWithRecovery(
+      trimmed.messages,
+      model,
+      (text, tokens, elapsed) => {
+        const now = performance.now();
+        if (now - lastPaint < 100) return;
+        lastPaint = now;
+        streaming.content.textContent = text;
+        streaming.meta.textContent = `${tokens} tokens · ${(elapsed / 1000).toFixed(1)}s`;
+      },
+      () => {
+        lastPaint = 0;
+        streaming.content.textContent = 'Recovering the local model and continuing…';
+        streaming.meta.textContent = '';
+      }
+    );
+    streaming.row.remove();
+    if (!result.cancelled && result.text.trim()) await saveAssistantMessage(result.text.trim(), [], { tokenCount: result.tokenCount, elapsedMs: result.elapsedMs });
+  } catch (generationError) {
+    streaming.row.remove();
+    console.error('Local text generation failed', generationError);
+    const message = isRecoverableGpuError(generationError)
+      ? 'The local GPU could not finish this response. Close GPU-heavy tabs or choose the smaller text model, then retry.'
+      : generationError instanceof Error ? generationError.message : String(generationError);
+    showToast(`Text generation failed: ${message}`, 'error', 8000);
+  } finally { setBusy(false); }
 }
 
-async function processImageMessage(
-  image: { dataUrl: string; name: string },
-  prompt: string,
-  recordUser = true
-): Promise<void> {
-  const status = createAssistantMessage();
-  mediaBusy = true;
-  setInteractive(false);
-  status.content.textContent = 'Preparing LFM2.5 visual reasoning…';
-  status.meta.textContent = 'First use downloads the local vision model';
+async function sendVisionMessage(prompt: string): Promise<void> {
+  const image = primaryImage();
+  if (!image) return beginAttachment('image');
+  if (!prompt && currentConversation?.messages.length) return;
+  if (!await ensureModel('vision')) return;
+  const question = prompt || 'Describe this image in useful detail.';
+  const ids = pendingAttachmentIds.length ? [...pendingAttachmentIds] : [];
+  await saveUserMessage(question, ids);
+  await generateVision(image, question, 'vision');
+}
 
+async function generateVision(image: AttachmentRecordV1, _question: string, modelMode: AppMode): Promise<void> {
+  const model = selectedModel('vision');
+  const streaming = createStreamingAssistant('Analyzing the image locally…');
+  setBusy(true);
   try {
-    const answer = await getMediaClient().analyzeImage(image.dataUrl, prompt, capabilities.backend, (progress) => {
-      status.content.textContent = progress.status === 'warming'
-        ? 'Starting LFM2.5 visual reasoning…'
-        : 'Downloading LFM2.5 vision…';
-      status.meta.textContent = progress.total > 0
-        ? `${formatBytes(progress.loaded)} of ${formatBytes(progress.total)} · ${progress.percent}%`
-        : `${progress.percent}%`;
+    const dataUrl = await blobToDataUrl(image.blob);
+    const history = runtimeMessages();
+    const answer = await mediaEngine.analyzeImage(dataUrl, history, model, 'webgpu', (progress) => {
+      streaming.content.textContent = progress.status === 'warming' ? 'Preparing visual reasoning…' : 'Downloading vision model…';
+      streaming.meta.textContent = `${formatBytes(progress.loaded)} of ${formatBytes(progress.total)} · ${progress.percent}%`;
     });
-    if (!answer.trim()) throw new Error('LFM2.5 vision returned an empty response.');
-    status.content.innerHTML = renderMarkdown(answer);
-    status.meta.textContent = 'LFM2.5 VL 450M · local WebGPU';
-    decorateAnswer(status.row, answer);
-    if (recordUser) messages.push({ role: 'user', content: prompt });
-    messages.push({ role: 'assistant', content: answer });
-    activeImageContext = image;
-    lastVisionTurn = { image, prompt };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    status.content.innerHTML = renderMarkdown(`**Visual reasoning could not start.**\n\n${message}`);
-    status.meta.textContent = 'The image stayed on this device';
-    const actions = status.row.querySelector<HTMLElement>('.message-actions');
-    const retry = document.createElement('button');
-    retry.textContent = 'Retry image';
-    retry.addEventListener('click', () => {
-      if (mediaBusy) return;
-      status.row.remove();
-      void processImageMessage(image, prompt, recordUser);
-    });
-    actions?.prepend(retry);
-    showToast(`Visual reasoning failed: ${message}`, 'error', 7000);
+    streaming.row.remove();
+    if (!answer.trim()) throw new Error('The vision model returned an empty response.');
+    await saveAssistantMessage(answer.trim(), [], undefined, model.id);
+  } catch (visionError) {
+    streaming.row.remove();
+    showToast(`Vision failed: ${visionError instanceof Error ? visionError.message : String(visionError)}`, 'error', 8000);
   } finally {
-    mediaBusy = false;
-    if (machine.state === 'ready') setInteractive(true);
+    setBusy(false);
+    if (modelMode === 'text') updateModeNavigation();
   }
 }
 
-async function regenerateLast(): Promise<void> {
-  if (machine.state !== 'ready') return;
-  if (lastVisionTurn) {
-    if (messages.at(-1)?.role === 'assistant') messages.pop();
-    lastAssistantElement?.remove();
-    await processImageMessage(lastVisionTurn.image, lastVisionTurn.prompt, false);
-    return;
+async function decodeAudio(blob: Blob): Promise<{ samples: Float32Array; sampleRate: number }> {
+  audioContext ??= new AudioContext();
+  const decoded = await audioContext.decodeAudioData(await blob.arrayBuffer());
+  const samples = new Float32Array(decoded.length);
+  for (let channel = 0; channel < decoded.numberOfChannels; channel += 1) {
+    const data = decoded.getChannelData(channel);
+    for (let index = 0; index < data.length; index += 1) samples[index] = (samples[index] ?? 0) + (data[index] ?? 0) / decoded.numberOfChannels;
   }
-  if (messages.at(-1)?.role === 'assistant') messages.pop();
-  lastAssistantElement?.remove();
-  const trimmed = trimConversation(messages, selectedModel.contextTokens);
-  await runGeneration(trimmed.messages);
+  return { samples, sampleRate: decoded.sampleRate };
 }
 
-function resizePrompt(): void {
-  promptInput.style.height = 'auto';
-  promptInput.style.height = `${Math.min(promptInput.scrollHeight, 180)}px`;
-  sendButton.disabled = machine.state !== 'ready' || (!promptInput.value.trim() && !pendingImage);
+function wavBlob(samples: Float32Array, sampleRate: number): Blob {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  const write = (offset: number, value: string) => [...value].forEach((character, index) => view.setUint8(offset + index, character.charCodeAt(0)));
+  write(0, 'RIFF'); view.setUint32(4, 36 + samples.length * 2, true); write(8, 'WAVE'); write(12, 'fmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true); write(36, 'data'); view.setUint32(40, samples.length * 2, true);
+  samples.forEach((sample, index) => view.setInt16(44 + index * 2, Math.max(-1, Math.min(1, sample)) * 0x7fff, true));
+  return new Blob([buffer], { type: 'audio/wav' });
 }
 
-function clearAttachment(): void {
-  pendingImage = null;
-  imageInput.value = '';
-  attachmentImage.removeAttribute('src');
-  attachmentPreview.classList.add('hidden');
-  resizePrompt();
-}
-
-function getMediaClient(): MediaEngine {
-  mediaClient ??= createMediaClient();
-  return mediaClient;
-}
-
-async function speakAnswer(text: string): Promise<void> {
+async function sendAudioMessage(prompt: string): Promise<void> {
+  const audio = pendingAttachmentIds.map((id) => attachments.get(id)).find((attachment) => attachment?.kind === 'audio');
+  if (!audio) return showToast('Record or choose an audio file first.', 'error');
+  if (!await ensureModel('audio')) return;
+  const attachmentIds = [...pendingAttachmentIds];
+  const streaming = createStreamingAssistant('Transcribing locally…');
+  setBusy(true);
   try {
-    showToast('Preparing local speech…');
-    const output = await getMediaClient().speak(text.slice(0, 1800), capabilities.backend);
-    audioContext ??= new AudioContext();
-    await audioContext.resume();
-    const buffer = audioContext.createBuffer(1, output.samples.length, output.sampleRate);
-    buffer.copyToChannel(new Float32Array(output.samples), 0);
-    const source = audioContext.createBufferSource();
-    source.buffer = buffer;
-    source.connect(audioContext.destination);
-    source.start();
-  } catch (error) {
-    showToast(`Speech output failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
-  }
-}
-
-function downsample(input: Float32Array, fromRate: number, toRate = 16_000): Float32Array {
-  if (fromRate === toRate) return input;
-  const ratio = fromRate / toRate;
-  const output = new Float32Array(Math.round(input.length / ratio));
-  for (let index = 0; index < output.length; index += 1) {
-    const start = Math.round(index * ratio);
-    const end = Math.min(input.length, Math.round((index + 1) * ratio));
-    let sum = 0;
-    for (let source = start; source < end; source += 1) sum += input[source] ?? 0;
-    output[index] = sum / Math.max(1, end - start);
-  }
-  return output;
+    const decoded = await decodeAudio(audio.blob);
+    const transcript = await mediaEngine.transcribe(decoded.samples.slice(), decoded.sampleRate, 'webgpu');
+    const userText = prompt ? `${transcript}\n\nInstruction: ${prompt}` : transcript;
+    await saveUserMessage(userText, attachmentIds);
+    streaming.content.textContent = 'Generating a private voice response…';
+    const prior = currentConversation?.messages.slice(-8).map((message) => `${message.role}: ${message.text}`).join('\n') ?? '';
+    const result = await mediaEngine.converseAudio(decoded.samples, decoded.sampleRate, `Continue this conversation.\n${prior}`.slice(-8_000), 'webgpu');
+    streaming.row.remove();
+    const responseText = result.text || 'A local audio response was generated.';
+    const generatedIds: string[] = [];
+    if (result.samples.length) {
+      const conversation = await ensureConversation();
+      const generated: AttachmentRecordV1 = {
+        id: crypto.randomUUID(), version: 1, conversationId: conversation.id, kind: 'generated-audio', name: 'Aether response.wav',
+        mimeType: 'audio/wav', size: result.samples.length * 2 + 44, blob: wavBlob(result.samples, result.sampleRate), createdAt: Date.now()
+      };
+      await saveAttachment(generated);
+      attachments.set(generated.id, generated);
+      generatedIds.push(generated.id);
+    }
+    await saveAssistantMessage(responseText, generatedIds, undefined, selectedModel('audio').id);
+  } catch (audioError) {
+    streaming.row.remove();
+    showToast(`Audio conversation failed: ${audioError instanceof Error ? audioError.message : String(audioError)}`, 'error', 8000);
+  } finally { setBusy(false); }
 }
 
 async function toggleRecording(): Promise<void> {
-  if (recorder?.state === 'recording') {
-    recorder.stop();
-    return;
-  }
+  if (recorder?.state === 'recording') return recorder.stop();
   try {
     recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const chunks: Blob[] = [];
     recorder = new MediaRecorder(recordingStream);
-    recorder.addEventListener('dataavailable', (event) => chunks.push(event.data));
+    recorder.addEventListener('dataavailable', (event) => { if (event.data.size) chunks.push(event.data); });
     recorder.addEventListener('stop', async () => {
       recordingStream?.getTracks().forEach((track) => track.stop());
       recordingStream = null;
+      micButton.textContent = '●';
       micButton.classList.remove('recording');
-      micButton.textContent = '⌁';
-      try {
-        audioContext ??= new AudioContext();
-        const data = await new Blob(chunks).arrayBuffer();
-        const decoded = await audioContext.decodeAudioData(data);
-        const samples = downsample(decoded.getChannelData(0), decoded.sampleRate, 24_000);
-        showToast('Transcribing locally…');
-        const text = await getMediaClient().transcribe(samples, 24_000, capabilities.backend);
-        promptInput.value = `${promptInput.value} ${text}`.trim();
-        resizePrompt();
-        promptInput.focus();
-      } catch (error) {
-        showToast(`Voice input failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
-      }
+      const blob = new Blob(chunks, { type: recorder?.mimeType || 'audio/webm' });
+      const file = new File([blob], `Recording ${new Date().toLocaleTimeString()}.webm`, { type: blob.type });
+      await handleFile(file, 'audio');
     });
     recorder.start();
-    micButton.classList.add('recording');
     micButton.textContent = '■';
-    showToast('Listening… Select the microphone again to stop.');
+    micButton.classList.add('recording');
+    showToast('Recording… Press stop when finished.');
   } catch {
     showToast('Microphone access was not granted.', 'error');
   }
 }
 
-async function renderModels(): Promise<void> {
-  const statuses = await Promise.all(TEXT_MODELS.map((model) => isModelCached(model)));
-  modelGrid.replaceChildren();
-  TEXT_MODELS.forEach((model, index) => {
-    const supported = modelSupportsBackend(model, capabilities.backend);
-    const cached = statuses[index] ?? false;
-    const active = selectedModel.id === model.id;
-    const card = document.createElement('article');
-    card.className = `model-card ${active ? 'active' : ''}`;
-    card.innerHTML = `
-      <div class="model-card-header">
-        <div><h3>${model.name}</h3><div class="model-publisher">${model.publisher}</div></div>
-        <span>${model.tier === 'quality' ? 'Optional' : model.tier}</span>
-      </div>
-      <p class="model-description">${model.description}</p>
-      <div class="model-facts"><span>${formatBytes(model.downloadBytes)}</span><span>${model.dtype[capabilities.backend] ?? 'Unsupported'}</span><span>${model.license}</span></div>
-      <div class="model-status">${!supported ? 'WebGPU is required' : cached ? 'Downloaded in this browser' : 'Not downloaded'}</div>
-      <div class="button-row"></div>`;
-    const actions = card.querySelector<HTMLDivElement>('.button-row')!;
-    const use = document.createElement('button');
-    use.className = `button ${active ? 'secondary' : 'primary'}`;
-    use.textContent = active && loadedModelId === model.id ? 'Active' : cached ? 'Use model' : 'Download & use';
-    use.disabled = !supported || (active && loadedModelId === model.id);
-    use.addEventListener('click', async () => {
-      if (loadedModelId && loadedModelId !== model.id) {
-        await engine.dispose();
-        engine = createTextEngine();
-        loadedModelId = '';
-      }
-      selectModel(model);
-      switchView('chat');
-      await prepareModel(true);
-    });
-    actions.append(use);
-    if (cached) {
-      const remove = document.createElement('button');
-      remove.className = 'button ghost';
-      remove.textContent = 'Remove';
-      remove.addEventListener('click', async () => {
-        if (loadedModelId === model.id) {
-          await engine.dispose();
-          engine = createTextEngine();
-          loadedModelId = '';
-          setRuntimeState('preflight');
-        }
-        await removeModelFromCache(model);
-        await Promise.all([renderModels(), refreshSetupCard(), updateStorageUI()]);
-        showToast(`${model.name} was removed from browser storage.`);
-      });
-      actions.append(remove);
-    }
-    modelGrid.append(card);
-  });
+async function updateSettings(): Promise<void> {
+  const [storage, usage, cachedStates] = await Promise.all([
+    readStorageSnapshot(), historyUsage().catch(() => ({ conversations: 0, attachments: 0, attachmentBytes: 0 })),
+    Promise.all(MODEL_CATALOG.map(async (model) => ({ model, cached: await modelIsCached(model) })))
+  ]);
+  element('storage-used').textContent = formatBytes(storage.usage);
+  element('storage-available').textContent = formatBytes(storage.available);
+  element('storage-persisted').textContent = storage.persisted ? 'Yes' : 'No';
+  element('history-usage').textContent = `${usage.conversations} chats · ${formatBytes(usage.attachmentBytes)}`;
+  const list = element<HTMLDivElement>('downloaded-model-list'); list.replaceChildren();
+  for (const { model } of cachedStates.filter((state) => state.cached)) {
+    const row = document.createElement('div'); row.className = 'downloaded-entry';
+    const copy = document.createElement('div'); copy.innerHTML = `<strong></strong><span></span>`; copy.querySelector('strong')!.textContent = model.name; copy.querySelector('span')!.textContent = `${model.mode} · ${formatBytes(model.downloadBytes)}`;
+    const remove = document.createElement('button'); remove.textContent = 'Remove'; remove.addEventListener('click', async () => { await removeModelFromCache(model); sessionReadyModels.delete(model.id); showToast(`${model.name} removed.`, 'success'); await updateSettings(); });
+    row.append(copy, remove); list.append(row);
+  }
+  if (!list.children.length) list.textContent = 'No downloaded models detected.';
 }
 
-async function updateStorageUI(): Promise<void> {
-  const storage = await readStorageSnapshot();
-  element<HTMLElement>('storage-used').textContent = formatBytes(storage.usage);
-  element<HTMLElement>('storage-available').textContent = storage.quota ? formatBytes(storage.available) : 'Browser managed';
-  element<HTMLElement>('storage-persisted').textContent = storage.persisted ? 'Enabled' : 'Best effort';
-  element<HTMLElement>('storage-model').textContent = await isModelCached(selectedModel) ? 'Downloaded' : 'Not cached';
+function confirmAction(copy: string): Promise<boolean> {
+  confirmCopy.textContent = copy;
+  confirmBackdrop.classList.remove('hidden');
+  return new Promise((resolve) => { confirmation = resolve; });
 }
 
-function populateModelSelect(): void {
-  onboardingModelSelect.replaceChildren();
-  TEXT_MODELS.filter((model) => modelSupportsBackend(model, capabilities.backend)).forEach((model) => {
-    const option = document.createElement('option');
-    option.value = model.id;
-    option.textContent = `${model.name} · ${formatBytes(model.downloadBytes)}`;
-    option.selected = model.id === selectedModel.id;
-    onboardingModelSelect.append(option);
-  });
-}
-
-async function updateOnboardingReadiness(): Promise<void> {
-  const storage = await readStorageSnapshot();
-  capabilities.storage = storage;
-  onboardingBackend.textContent = capabilities.backend === 'webgpu' ? 'WebGPU · accelerated' : 'WASM · CPU fallback';
-  onboardingStorage.textContent = storage.quota ? formatBytes(storage.available) : 'Browser managed';
-  updateSelectedModelUI();
-  populateModelSelect();
-  const capacity = hasStorageCapacity(storage, selectedModel);
-  const secure = globalThis.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-  preflightMessage.textContent = !secure
-    ? 'A secure HTTPS connection is required for browser acceleration and storage.'
-    : !navigator.onLine
-      ? 'Connect once to download the selected model.'
-      : !capacity
-        ? `Free at least ${formatBytes(selectedModel.downloadBytes * 1.25)} of browser storage.`
-        : capabilities.backend === 'wasm'
-          ? 'WebGPU was not available. CPU mode works, but generation will be slower.'
-          : '';
-  onboardingStart.disabled = !secure || !navigator.onLine || !capacity;
-}
-
-function setOnboardingStep(step: number): void {
-  onboardingStep = Math.max(1, Math.min(3, step));
-  document.querySelectorAll<HTMLElement>('[data-onboarding-step]').forEach((slide) => {
-    const active = Number(slide.dataset.onboardingStep) === onboardingStep;
-    slide.hidden = !active;
-    slide.classList.toggle('active', active);
-  });
-  document.querySelectorAll<HTMLElement>('[data-step-dot]').forEach((dot) => {
-    const value = Number(dot.dataset.stepDot);
-    dot.classList.toggle('active', value === onboardingStep);
-    dot.classList.toggle('done', value < onboardingStep);
-  });
-  if (onboardingStep === 3) void updateOnboardingReadiness();
-  const firstFocusable = onboardingDialog.querySelector<HTMLElement>('[data-onboarding-step]:not([hidden]) button, [data-onboarding-step]:not([hidden]) select');
-  firstFocusable?.focus();
+function resolveConfirmation(value: boolean): void {
+  confirmBackdrop.classList.add('hidden');
+  confirmation?.(value);
+  confirmation = null;
 }
 
 function showOnboarding(): void {
-  if (machine.canTransition('onboarding')) setRuntimeState('onboarding');
-  appShell.inert = true;
-  appShell.setAttribute('aria-hidden', 'true');
+  onboardingStep = 1;
+  updateOnboarding();
   onboardingBackdrop.classList.remove('hidden');
-  setOnboardingStep(1);
+  element('app-shell').setAttribute('inert', '');
   onboardingDialog.focus();
 }
 
 function hideOnboarding(): void {
   onboardingBackdrop.classList.add('hidden');
-  appShell.inert = false;
-  appShell.removeAttribute('aria-hidden');
+  element('app-shell').removeAttribute('inert');
 }
 
-function trapOnboardingFocus(event: KeyboardEvent): void {
-  if (onboardingBackdrop.classList.contains('hidden') || event.key !== 'Tab') return;
-  const focusable = [...onboardingDialog.querySelectorAll<HTMLElement>('button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')]
-    .filter((item) => !item.closest<HTMLElement>('[hidden]'));
-  if (!focusable.length) return;
-  const first = focusable[0]!;
-  const last = focusable.at(-1)!;
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
+function updateOnboarding(): void {
+  document.querySelectorAll<HTMLElement>('[data-onboarding-step]').forEach((slide) => slide.classList.toggle('active', Number(slide.dataset.onboardingStep) === onboardingStep));
+  document.querySelectorAll<HTMLElement>('[data-step-dot]').forEach((dot) => dot.classList.toggle('active', Number(dot.dataset.stepDot) === onboardingStep));
 }
 
 function bindEvents(): void {
-  document.querySelectorAll<HTMLButtonElement>('[data-view]').forEach((button) => {
-    button.addEventListener('click', () => switchView(button.dataset.view as 'chat' | 'models' | 'settings'));
-  });
-  document.querySelectorAll<HTMLButtonElement>('[data-view-target]').forEach((button) => {
-    button.addEventListener('click', () => switchView(button.dataset.viewTarget as 'chat' | 'models' | 'settings'));
-  });
-  element<HTMLButtonElement>('menu-button').addEventListener('click', () => {
-    sidebar.classList.add('open');
-    sidebarScrim.classList.add('active');
-  });
-  element<HTMLButtonElement>('sidebar-close').addEventListener('click', closeSidebar);
-  sidebarScrim.addEventListener('click', closeSidebar);
-  setupPrimary.addEventListener('click', () => void prepareModel(true));
-  setupCancel.addEventListener('click', () => engine.cancel());
-  sendButton.addEventListener('click', () => void sendMessage());
-  stopButton.addEventListener('click', () => engine.cancel());
-  promptInput.addEventListener('input', resizePrompt);
-  promptInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-      event.preventDefault();
-      void sendMessage();
-    }
-  });
-  document.querySelectorAll<HTMLButtonElement>('.starter-prompt').forEach((button) => {
-    button.addEventListener('click', () => {
-      promptInput.value = button.dataset.prompt ?? '';
-      resizePrompt();
-      void sendMessage();
-    });
-  });
-  element<HTMLButtonElement>('remove-attachment').addEventListener('click', clearAttachment);
-  imageInput.addEventListener('change', async () => {
-    const file = imageInput.files?.[0];
-    if (!file) return;
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) {
-      showToast('Choose a PNG, JPEG, or WebP image under 8 MB.', 'error');
-      clearAttachment();
+  document.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((button) => button.addEventListener('click', () => void switchMode(button.dataset.mode as AppMode)));
+  element('new-chat-button').addEventListener('click', () => void startNewConversation());
+  element('header-new-chat').addEventListener('click', () => void startNewConversation());
+  element('settings-button').addEventListener('click', showSettings);
+  element('menu-button').addEventListener('click', () => { sidebar.classList.add('open'); sidebarScrim.classList.add('active'); });
+  element('sidebar-close').addEventListener('click', closeSidebar); sidebarScrim.addEventListener('click', closeSidebar);
+  modelPill.addEventListener('click', () => void openModelPicker());
+  element('close-model-modal').addEventListener('click', closeModelPicker);
+  modelModalBackdrop.addEventListener('click', (event) => { if (event.target === modelModalBackdrop) closeModelPicker(); });
+  cancelDownload.addEventListener('click', () => {
+    if (downloadButtonMode === 'continue') {
+      const action = requestedAttachmentKind;
+      requestedAttachmentKind = null;
+      downloadButtonMode = 'cancel';
+      modelModalBackdrop.classList.add('hidden');
+      if (action === 'record') void toggleRecording();
+      else if (action) openFilePicker(action);
       return;
     }
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.addEventListener('load', () => resolve(String(reader.result)));
-      reader.addEventListener('error', () => reject(reader.error));
-      reader.readAsDataURL(file);
-    });
-    pendingImage = { dataUrl, name: file.name };
-    attachmentImage.src = dataUrl;
-    attachmentName.textContent = file.name;
-    attachmentPreview.classList.remove('hidden');
+    if (loadingModelMode === 'text') textEngine.cancel(); else mediaEngine.cancel();
+    downloading = false;
+    loadingModelMode = null;
+    requestedAttachmentKind = null;
+    modelModalBackdrop.classList.add('hidden');
+    showToast('Model setup cancelled.');
+  });
+  emptyPrimary.addEventListener('click', () => void handleEmptyAction(emptyPrimary.dataset.action));
+  emptySecondary.addEventListener('click', () => void handleEmptyAction(emptySecondary.dataset.action));
+  attachButton.addEventListener('click', () => { const hidden = attachmentMenu.classList.toggle('hidden'); attachButton.setAttribute('aria-expanded', String(!hidden)); });
+  document.querySelectorAll<HTMLButtonElement>('[data-attach-kind]').forEach((button) => button.addEventListener('click', () => void beginAttachment(button.dataset.attachKind as 'image' | 'audio' | 'document')));
+  fileInput.addEventListener('change', () => { const file = fileInput.files?.[0]; if (file) void handleFile(file, fileInput.dataset.kind as 'image' | 'audio' | 'document'); });
+  promptInput.addEventListener('input', () => {
     resizePrompt();
+    if (activeMode === 'text' && promptInput.value.trim() && !pendingAttachmentIds.length) void prepareModelInline('text');
   });
+  promptInput.addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendCurrentMessage(); } });
+  sendButton.addEventListener('click', () => void sendCurrentMessage());
+  stopButton.addEventListener('click', () => { textEngine.cancel(); setBusy(false); showToast('Generation stopped.'); });
   micButton.addEventListener('click', () => void toggleRecording());
-
-  document.querySelectorAll<HTMLButtonElement>('[data-onboarding-next]').forEach((button) => {
-    button.addEventListener('click', () => setOnboardingStep(onboardingStep + 1));
+  composerPreparationRetry.addEventListener('click', () => {
+    const mode = failedInlineMode;
+    failedInlineMode = null;
+    composerPreparationRetry.classList.add('hidden');
+    if (mode) void prepareModelInline(mode);
   });
-  document.querySelectorAll<HTMLButtonElement>('[data-onboarding-back]').forEach((button) => {
-    button.addEventListener('click', () => setOnboardingStep(onboardingStep - 1));
-  });
-  element<HTMLButtonElement>('change-onboarding-model').addEventListener('click', () => {
-    onboardingModelPicker.classList.toggle('hidden');
-    if (!onboardingModelPicker.classList.contains('hidden')) onboardingModelSelect.focus();
-  });
-  onboardingModelSelect.addEventListener('change', () => {
-    const model = getModel(onboardingModelSelect.value);
-    if (model) selectModel(model);
-    void updateOnboardingReadiness();
-  });
-  onboardingStart.addEventListener('click', async () => {
-    preferences.onboardingComplete = true;
-    savePreferences(preferences);
-    hideOnboarding();
-    await prepareModel(true);
-  });
-  onboardingDialog.addEventListener('keydown', trapOnboardingFocus);
-
-  element<HTMLButtonElement>('replay-onboarding').addEventListener('click', showOnboarding);
-  speakToggle.addEventListener('change', () => {
-    preferences.speakResponses = speakToggle.checked;
-    savePreferences(preferences);
-    if (speakToggle.checked) showToast('The local voice model will download after the next answer.');
-  });
-  element<HTMLButtonElement>('remove-model-button').addEventListener('click', async () => {
-    if (loadedModelId === selectedModel.id) {
-      await engine.dispose();
-      engine = createTextEngine();
-      loadedModelId = '';
-      setRuntimeState('preflight');
-    }
-    await removeModelFromCache(selectedModel);
-    await Promise.all([updateStorageUI(), renderModels(), refreshSetupCard()]);
-    showToast(`${selectedModel.name} was removed from browser storage.`);
-  });
-  element<HTMLButtonElement>('clear-chat-button').addEventListener('click', () => {
-    if (machine.state === 'generating') engine.cancel();
-    messages = [messages[0]!];
-    activeImageContext = null;
-    lastVisionTurn = null;
-    chatMessages.querySelectorAll('.message').forEach((message) => message.remove());
-    lastAssistantElement = null;
-    welcomeCard.classList.remove('hidden');
-    showToast('Chat cleared. Nothing was saved.', 'success');
-  });
-  window.addEventListener('online', () => { updateConnection(); void refreshSetupCard(); });
-  window.addEventListener('offline', updateConnection);
-  window.addEventListener('error', (event) => {
-    showToast(`Unexpected error: ${event.message || 'An unknown browser error occurred.'}`, 'error', 7000);
-  });
-  window.addEventListener('unhandledrejection', (event) => {
-    event.preventDefault();
-    const reason = event.reason instanceof Error ? event.reason.message : String(event.reason ?? 'Unknown failure');
-    showToast(`Unexpected error: ${reason}`, 'error', 7000);
-  });
+  element('clear-history-button').addEventListener('click', async () => { if (!await confirmAction('Delete every saved conversation and attachment from this browser? Downloaded models will remain.')) return; await clearHistory(); await startNewConversation(); await updateSettings(); showToast('Local history cleared.', 'success'); });
+  element('replay-onboarding').addEventListener('click', showOnboarding);
+  element('confirm-cancel').addEventListener('click', () => resolveConfirmation(false)); element('confirm-accept').addEventListener('click', () => resolveConfirmation(true));
+  document.querySelectorAll<HTMLButtonElement>('[data-onboarding-next]').forEach((button) => button.addEventListener('click', () => { onboardingStep = Math.min(3, onboardingStep + 1); updateOnboarding(); }));
+  document.querySelectorAll<HTMLButtonElement>('[data-onboarding-back]').forEach((button) => button.addEventListener('click', () => { onboardingStep = Math.max(1, onboardingStep - 1); updateOnboarding(); }));
+  element('finish-onboarding').addEventListener('click', async () => { preferences.onboardingComplete = true; savePreferences(preferences); hideOnboarding(); await openModelPicker(); });
+  window.addEventListener('online', () => showToast('Back online.', 'success')); window.addEventListener('offline', () => showToast('Offline. Cached models remain available.', 'error'));
+  window.addEventListener('beforeunload', revokeObjectUrls);
 }
 
-async function initializeApp(): Promise<void> {
+async function handleEmptyAction(action?: string): Promise<void> {
+  if (action === 'model') return openModelPicker();
+  if (action === 'image') return beginAttachment('image');
+  if (action === 'audio') return beginAttachment('audio');
+  if (action === 'record') return toggleRecording();
+  if (action === 'focus') { composerDock.classList.remove('hidden'); promptInput.focus(); return; }
+  if (action === 'recheck') { capabilities = await detectCapabilities(); await renderEmptyState(); }
+}
+
+async function initialize(): Promise<void> {
   bindEvents();
-  updateConnection();
   capabilities = await detectCapabilities();
-  preferences = loadPreferences(capabilities.backend);
-  const savedModel = getModel(preferences.selectedModelId);
-  selectedModel = savedModel && modelSupportsBackend(savedModel, capabilities.backend)
-    ? savedModel
-    : recommendedModel(capabilities.backend);
-  speakToggle.checked = preferences.speakResponses;
-  updateSelectedModelUI();
-  speakToggle.disabled = capabilities.backend !== 'webgpu';
-  speakToggle.title = capabilities.backend === 'webgpu' ? '' : 'LFM2.5 Audio requires WebGPU.';
-  const visionModel = MODEL_CATALOG.find((model) => model.task === 'vision-language');
-  if (visionModel) {
-    try {
-      const removed = await removeStaleModelCache(visionModel);
-      if (removed > 0) showToast('Removed an incompatible cached image model.', 'success');
-    } catch (error) {
-      showToast(`Could not clean old image-model files: ${error instanceof Error ? error.message : String(error)}`, 'error');
-    }
+  preferences = loadPreferences();
+  activeMode = preferences.activeMode;
+  updateModeNavigation();
+  await Promise.all([renderRecents(), renderEmptyState()]);
+  if (!preferences.onboardingComplete) showOnboarding();
+  if ('serviceWorker' in navigator && import.meta.env.PROD) {
+    const { registerSW } = await import('virtual:pwa-register'); registerSW({ immediate: true });
   }
-  try {
-    const removedLegacyVision = await removeCachedModelId('Xenova/vit-gpt2-image-captioning');
-    if (removedLegacyVision > 0) showToast('Removed the previous caption-only image model.', 'success');
-  } catch (error) {
-    showToast(`Could not clean the previous image model: ${error instanceof Error ? error.message : String(error)}`, 'error');
-  }
-  await Promise.all([renderModels(), updateStorageUI()]);
-
-  if (!preferences.onboardingComplete) {
-    showOnboarding();
-  } else {
-    setRuntimeState('preflight');
-    const cached = await isModelCached(selectedModel);
-    if (cached) await prepareModel(false);
-    else await refreshSetupCard();
-  }
-
-  registerSW({
-    immediate: false,
-    onOfflineReady: () => showToast('Aether’s app shell is ready offline.', 'success'),
-    onNeedRefresh: () => showToast('A new Aether version is available. Refresh when convenient.')
-  });
 }
 
-void initializeApp().catch((error) => {
-  console.error(error);
-  showToast(`Aether could not start: ${error instanceof Error ? error.message : String(error)}`, 'error', 8000);
+void initialize().catch((error) => {
+  showToast(`Aether could not start: ${error instanceof Error ? error.message : String(error)}`, 'error', 10_000);
 });

@@ -7,12 +7,13 @@ import type { MediaRequest, MediaResponse, ModelDescriptor } from './types';
 declare const self: DedicatedWorkerGlobalScope;
 
 let transformersModule: typeof import('@huggingface/transformers') | null = null;
-let visionRuntime: { model: any; processor: any; RawImage: any } | null = null;
+let visionRuntime: { model: any; processor: any; RawImage: any; modelId: string } | null = null;
 let audioRuntime: AudioRuntime | null = null;
 
 interface AudioRuntime {
   transcribe(audio: Float32Array, sampleRate: number, options?: Record<string, unknown>): Promise<string>;
   generateSpeech(text: string, options?: Record<string, unknown>): Promise<{ audioCodes: number[][] }>;
+  generateInterleaved(audio: Float32Array, sampleRate: number, prompt?: string, options?: Record<string, unknown>): Promise<{ text?: string; audioCodes?: number[][] }>;
   decodeAudioCodes(codes: number[][]): Promise<Float32Array>;
   dispose(): void;
 }
@@ -27,8 +28,10 @@ function descriptor(task: ModelDescriptor['task']): ModelDescriptor {
   return model;
 }
 
-async function getVisionRuntime(requestId: string): Promise<NonNullable<typeof visionRuntime>> {
-  if (visionRuntime) return visionRuntime;
+async function getVisionRuntime(requestId: string, descriptorValue: ModelDescriptor): Promise<NonNullable<typeof visionRuntime>> {
+  if (visionRuntime?.modelId === descriptorValue.id) return visionRuntime;
+  await visionRuntime?.model.dispose?.();
+  visionRuntime = null;
   audioRuntime?.dispose();
   audioRuntime = null;
   transformersModule ??= await import('@huggingface/transformers');
@@ -36,7 +39,6 @@ async function getVisionRuntime(requestId: string): Promise<NonNullable<typeof v
   env.allowLocalModels = false;
   env.useBrowserCache = true;
   env.useWasmCache = true;
-  const descriptorValue = descriptor('vision-language');
   const progressTracker = new DownloadProgressTracker(descriptorValue.downloadBytes);
   const progressCallback = (event: { status?: string; file?: string; loaded?: number; total?: number; progress?: number }) => {
     const complete = event.status === 'ready';
@@ -67,17 +69,20 @@ async function getVisionRuntime(requestId: string): Promise<NonNullable<typeof v
     revision: descriptorValue.revision,
     progress_callback: progressCallback
   });
-  visionRuntime = { model, processor, RawImage };
+  visionRuntime = { model, processor, RawImage, modelId: descriptorValue.id };
   return visionRuntime;
 }
 
-async function analyzeImage(requestId: string, imageSource: string, prompt: string): Promise<string> {
-  const { model, processor, RawImage } = await getVisionRuntime(requestId);
+async function analyzeImage(requestId: string, imageSource: string, history: import('./types').ChatMessage[], descriptorValue: ModelDescriptor): Promise<string> {
+  const { model, processor, RawImage } = await getVisionRuntime(requestId, descriptorValue);
   const image = await RawImage.fromURL(imageSource);
-  const messages = [{
-    role: 'user',
-    content: [{ type: 'image' }, { type: 'text', text: prompt }]
-  }];
+  const conversation = history.filter((message) => message.role !== 'system');
+  const messages = conversation.map((message, index) => ({
+    role: message.role,
+    content: message.role === 'user' && index === 0
+      ? [{ type: 'image' }, { type: 'text', text: message.content }]
+      : [{ type: 'text', text: message.content }]
+  }));
   const chatPrompt = processor.apply_chat_template(messages, { add_generation_prompt: true });
   const inputs = await processor(image, chatPrompt, { add_special_tokens: false });
   const outputs = await model.generate({
@@ -137,6 +142,12 @@ self.addEventListener('message', async (event: MessageEvent<MediaRequest>) => {
       const runtime = await getAudioRuntime(request.requestId);
       const text = await runtime.transcribe(request.audio, request.sampleRate, { maxNewTokens: 160 });
       post({ type: 'transcription', requestId: request.requestId, text: String(text).trim() });
+    } else if (request.type === 'loadModel') {
+      if (request.backend !== 'webgpu') throw new Error('LFM2.5 models require WebGPU in this browser.');
+      if (request.model.task === 'vision-language') await getVisionRuntime(request.requestId, request.model);
+      else if (request.model.task === 'audio') await getAudioRuntime(request.requestId);
+      else throw new Error('This model does not use the media runtime.');
+      post({ type: 'ready', requestId: request.requestId, modelId: request.model.id });
     } else if (request.type === 'speak') {
       if (request.backend !== 'webgpu') throw new Error('LFM2.5 Audio requires WebGPU in this browser.');
       const runtime = await getAudioRuntime(request.requestId);
@@ -146,9 +157,15 @@ self.addEventListener('message', async (event: MessageEvent<MediaRequest>) => {
         { type: 'audio', requestId: request.requestId, samples, sampleRate: 24_000 },
         [samples.buffer]
       );
+    } else if (request.type === 'converseAudio') {
+      if (request.backend !== 'webgpu') throw new Error('LFM2.5 Audio requires WebGPU in this browser.');
+      const runtime = await getAudioRuntime(request.requestId);
+      const result = await runtime.generateInterleaved(request.audio, request.sampleRate, request.prompt, { maxNewTokens: 512 });
+      const samples = result.audioCodes?.length ? await runtime.decodeAudioCodes(result.audioCodes) : new Float32Array(0);
+      post({ type: 'audioConversation', requestId: request.requestId, text: String(result.text ?? '').trim(), samples, sampleRate: 24_000 }, [samples.buffer]);
     } else if (request.type === 'analyzeImage') {
       if (request.backend !== 'webgpu') throw new Error('LFM2.5 vision requires WebGPU in this browser.');
-      const text = await analyzeImage(request.requestId, request.image, request.prompt);
+      const text = await analyzeImage(request.requestId, request.image, request.messages, request.model);
       post({ type: 'vision', requestId: request.requestId, text });
     } else if (request.type === 'dispose') {
       await visionRuntime?.model.dispose?.();

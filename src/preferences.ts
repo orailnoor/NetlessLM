@@ -1,45 +1,69 @@
-import { recommendedModel } from './models';
-import type { AppPreferencesV1, Backend } from './types';
+import { modelsForMode, recommendedModel } from './models';
+import type { AppMode, AppPreferencesV2 } from './types';
 
-export const PREFERENCES_KEY = 'aether.preferences.v1';
+export const PREFERENCES_KEY = 'aether.preferences.v2';
+const LEGACY_KEY = 'aether.preferences.v1';
+const MODES: AppMode[] = ['text', 'vision', 'audio'];
 
-export function defaultPreferences(backend: Backend = 'wasm'): AppPreferencesV1 {
+export function defaultPreferences(): AppPreferencesV2 {
   return {
-    version: 1,
+    version: 2,
     onboardingComplete: false,
-    selectedModelId: recommendedModel(backend).id,
-    backend,
-    speakResponses: false,
+    activeMode: 'text',
+    selectedModelByMode: {
+      text: recommendedModel('text').id,
+      vision: recommendedModel('vision').id,
+      audio: recommendedModel('audio').id
+    },
     compactSidebar: false
   };
 }
 
-export function parsePreferences(value: string | null, backend: Backend): AppPreferencesV1 {
-  if (!value) return defaultPreferences(backend);
+export function parsePreferences(value: string | null, legacyValue: string | null = null): AppPreferencesV2 {
+  const defaults = defaultPreferences();
   try {
-    const parsed = JSON.parse(value) as Partial<AppPreferencesV1>;
-    if (parsed.version !== 1) return defaultPreferences(backend);
-    return {
-      ...defaultPreferences(backend),
-      ...parsed,
-      version: 1,
-      onboardingComplete: parsed.onboardingComplete === true,
-      speakResponses: parsed.speakResponses === true,
-      compactSidebar: parsed.compactSidebar === true,
-      backend: parsed.backend === 'webgpu' || parsed.backend === 'wasm' ? parsed.backend : backend,
-      selectedModelId: typeof parsed.selectedModelId === 'string'
-        ? parsed.selectedModelId
-        : recommendedModel(backend).id
-    };
+    if (value) {
+      const parsed = JSON.parse(value) as Partial<AppPreferencesV2>;
+      if (parsed.version === 2) {
+        const selections = { ...defaults.selectedModelByMode };
+        for (const mode of MODES) {
+          const candidate = parsed.selectedModelByMode?.[mode];
+          if (typeof candidate === 'string' && modelsForMode(mode).some((model) => model.id === candidate)) selections[mode] = candidate;
+        }
+        return {
+          ...defaults,
+          version: 2,
+          onboardingComplete: parsed.onboardingComplete === true,
+          activeMode: MODES.includes(parsed.activeMode as AppMode) ? parsed.activeMode as AppMode : 'text',
+          selectedModelByMode: selections,
+          compactSidebar: parsed.compactSidebar === true
+        };
+      }
+    }
+    if (legacyValue) {
+      const legacy = JSON.parse(legacyValue) as { onboardingComplete?: boolean; compactSidebar?: boolean };
+      return {
+        ...defaults,
+        onboardingComplete: legacy.onboardingComplete === true,
+        compactSidebar: legacy.compactSidebar === true
+      };
+    }
   } catch {
-    return defaultPreferences(backend);
+    return defaults;
   }
+  return defaults;
 }
 
-export function loadPreferences(backend: Backend): AppPreferencesV1 {
-  return parsePreferences(globalThis.localStorage?.getItem(PREFERENCES_KEY) ?? null, backend);
+export function loadPreferences(): AppPreferencesV2 {
+  const preferences = parsePreferences(
+    globalThis.localStorage?.getItem(PREFERENCES_KEY) ?? null,
+    globalThis.localStorage?.getItem(LEGACY_KEY) ?? null
+  );
+  savePreferences(preferences);
+  globalThis.localStorage?.removeItem(LEGACY_KEY);
+  return preferences;
 }
 
-export function savePreferences(preferences: AppPreferencesV1): void {
+export function savePreferences(preferences: AppPreferencesV2): void {
   globalThis.localStorage?.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
 }

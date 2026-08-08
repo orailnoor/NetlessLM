@@ -33,6 +33,9 @@ export default defineConfig({
           '**/media-worker-*.js',
           '**/audio-model-*.js',
           '**/transformers.web-*.js',
+          '**/pdf-*.js',
+          '**/pdf.worker-*.js',
+          '**/mammoth.browser-*.js',
           '**/*.wasm'
         ],
         navigateFallback: '/index.html',

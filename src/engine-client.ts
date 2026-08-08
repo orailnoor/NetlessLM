@@ -136,9 +136,13 @@ export class WorkerTextEngine implements TextEngine {
   async dispose(): Promise<void> {
     if (!this.#worker) return;
     const id = requestId();
-    await this.#post<void>({ type: 'dispose', requestId: id });
-    this.#worker.terminate();
-    this.#worker = null;
+    try {
+      await this.#post<void>({ type: 'dispose', requestId: id });
+    } finally {
+      this.#worker?.terminate();
+      this.#worker = null;
+      this.#pending.clear();
+    }
   }
 }
 
@@ -163,6 +167,12 @@ export class MockTextEngine implements TextEngine {
     _maxNewTokens: number,
     onToken: (text: string, tokenCount: number, elapsedMs: number) => void
   ): Promise<GenerationResult> {
+    const storage = globalThis.sessionStorage;
+    const shouldFailOnce = new URLSearchParams(globalThis.location?.search ?? '').get('mockGpuFailure') === '1' && storage?.getItem('aether.mockGpuFailureConsumed') !== '1';
+    if (shouldFailOnce) {
+      storage?.setItem('aether.mockGpuFailureConsumed', '1');
+      throw new Error("failed to call OrtRun(): Failed to execute 'MapAsync' on 'GPUBuffer': Invalid Buffer");
+    }
     this.#cancelled = false;
     const prompt = messages.at(-1)?.content ?? '';
     const answer = `This is a private local response to: ${prompt}`;

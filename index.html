@@ -3,155 +3,95 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b0d12" />
-    <meta name="description" content="Private, browser-native AI that runs on your device." />
+    <meta name="theme-color" content="#111111" />
+    <meta name="description" content="Private LFM2.5 AI that runs in your browser." />
     <title>Aether — Private Local AI</title>
     <link rel="icon" href="/aether-mark.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <div class="app-shell" id="app-shell">
-      <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
-        <div class="brand-row">
-          <img src="/aether-mark.svg" alt="" class="brand-mark" />
-          <div>
-            <strong>Aether</strong>
-            <span>Local AI</span>
-          </div>
+    <div class="app-frame" id="app-shell">
+      <aside class="sidebar" id="sidebar" aria-label="Aether navigation">
+        <div class="sidebar-head">
+          <div class="brand"><img src="/aether-mark.svg" alt="" /><span>Aether</span></div>
           <button class="icon-button sidebar-close" id="sidebar-close" aria-label="Close navigation">×</button>
         </div>
-
-        <nav class="primary-nav">
-          <button class="nav-button active" data-view="chat" aria-current="page">
-            <span class="nav-icon" aria-hidden="true">⌁</span><span>Chat</span>
-          </button>
-          <button class="nav-button" data-view="models">
-            <span class="nav-icon" aria-hidden="true">◇</span><span>Models</span>
-          </button>
-          <button class="nav-button" data-view="settings">
-            <span class="nav-icon" aria-hidden="true">⌘</span><span>Settings</span>
-          </button>
+        <button class="new-chat-button" id="new-chat-button"><span>＋</span> New chat</button>
+        <nav class="mode-nav" aria-label="AI modes">
+          <span class="nav-label">Modes</span>
+          <button class="mode-button active" data-mode="text" aria-current="page"><span class="mode-icon">◌</span><span>Text</span></button>
+          <button class="mode-button" data-mode="vision"><span class="mode-icon">◉</span><span>Vision</span></button>
+          <button class="mode-button" data-mode="audio"><span class="mode-icon">●</span><span>Audio</span></button>
         </nav>
-
-        <div class="privacy-note">
-          <span class="privacy-dot" aria-hidden="true"></span>
-          <div>
-            <strong>Private by default</strong>
-            <p>Prompts and inference stay on this device.</p>
-          </div>
-        </div>
+        <section class="recent-section" aria-labelledby="recent-title">
+          <div class="recent-heading"><span class="nav-label" id="recent-title">Recents</span><span id="history-count"></span></div>
+          <div class="recent-list" id="recent-list"></div>
+          <p class="recent-empty" id="recent-empty">Your local conversations appear here.</p>
+        </section>
+        <button class="settings-button" id="settings-button"><span>⚙</span><span>Settings</span></button>
       </aside>
 
       <main class="workspace">
-        <header class="topbar">
+        <header class="workspace-header">
           <button class="icon-button menu-button" id="menu-button" aria-label="Open navigation">☰</button>
-          <div class="topbar-title">
-            <span class="eyebrow">PRIVATE SESSION</span>
-            <h1 id="view-title">Chat</h1>
-          </div>
-          <div class="topbar-actions">
-            <span class="connection-pill" id="connection-pill"><span></span>Online</span>
-            <button class="icon-button clear-chat-button" id="clear-chat-button" type="button" aria-label="Clear chat" title="Clear chat">⌫</button>
-            <button class="model-pill" id="model-pill" data-view-target="models">
-              <span class="model-pill-dot"></span>
-              <span id="active-model-name">Model not loaded</span>
-            </button>
-          </div>
+          <button class="model-pill" id="model-pill" aria-label="Choose local model">
+            <span id="active-model-name">Choose model</span><span aria-hidden="true">⌄</span>
+          </button>
+          <button class="icon-button header-new-chat" id="header-new-chat" aria-label="Start a new chat">✎</button>
         </header>
 
-        <section class="view active" id="chat-view" data-view-panel="chat" aria-labelledby="view-title">
-          <div class="chat-scroll" id="chat-messages" aria-live="polite">
-            <div class="welcome-card" id="welcome-card">
-              <div class="welcome-icon" aria-hidden="true">✦</div>
-              <span class="eyebrow">YOUR PRIVATE WORKSPACE</span>
-              <h2>Think, write, and explore locally.</h2>
-              <p>The model runs in this browser. After its one-time download, new chats can work without a network connection.</p>
-              <div class="starter-grid">
-                <button class="starter-prompt" data-prompt="Explain local browser AI in simple terms.">
-                  <strong>Explain something</strong><span>How does local browser AI work?</span>
-                </button>
-                <button class="starter-prompt" data-prompt="Draft a concise professional email asking my team for project feedback.">
-                  <strong>Draft an email</strong><span>Ask a team for useful feedback</span>
-                </button>
-                <button class="starter-prompt" data-prompt="Give me five practical ideas for a weekend browser project.">
-                  <strong>Brainstorm ideas</strong><span>Plan a useful weekend project</span>
-                </button>
-              </div>
-            </div>
+        <section class="workspace-view active" id="chat-view">
+          <div class="privacy-banner">Local AI can make mistakes. Check important information.</div>
+          <div class="chat-scroll" id="chat-messages" aria-live="polite"></div>
 
-            <section class="setup-card hidden" id="setup-card" aria-live="polite">
-              <div class="setup-icon" id="setup-icon" aria-hidden="true">↓</div>
-              <div class="setup-copy">
-                <span class="eyebrow" id="setup-eyebrow">LOCAL MODEL</span>
-                <h2 id="setup-title">Your model is ready to download</h2>
-                <p id="setup-description">Download one verified model to start private chat.</p>
-                <div class="progress-track" id="setup-progress-track" hidden>
-                  <div class="progress-fill" id="setup-progress"></div>
-                </div>
-                <div class="setup-meta" id="setup-meta"></div>
-                <div class="button-row">
-                  <button class="button primary" id="setup-primary">Download &amp; start</button>
-                  <button class="button ghost hidden" id="setup-cancel">Cancel</button>
-                  <button class="button ghost" data-view-target="models">Change model</button>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          <div class="composer-wrap">
-            <div class="attachment-preview hidden" id="attachment-preview">
-              <img id="attachment-image" alt="Image attachment preview" />
-              <div><strong id="attachment-name"></strong><span>LFM2.5 visual reasoning will run locally.</span></div>
-              <button class="icon-button" id="remove-attachment" aria-label="Remove attachment">×</button>
+          <section class="empty-state" id="empty-state">
+            <div class="empty-icon" id="empty-icon">◌</div>
+            <h1 id="empty-title">Choose a model to begin</h1>
+            <p id="empty-description">Models run locally on this device.</p>
+            <div class="empty-actions">
+              <button class="primary-action" id="empty-primary">Choose model</button>
+              <button class="secondary-action hidden" id="empty-secondary"></button>
             </div>
+          </section>
+
+          <div class="composer-dock hidden" id="composer-dock">
+            <div class="attachment-tray" id="attachment-tray"></div>
             <div class="composer">
-              <label class="icon-button attach-button" aria-label="Attach an image" title="Attach an image">
-                <input id="image-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
-                ＋
-              </label>
-              <textarea id="prompt-input" rows="1" maxlength="12000" placeholder="Message your local AI…" aria-label="Message your local AI" disabled></textarea>
-              <button class="icon-button" id="mic-button" aria-label="Start voice input" title="Local voice input" disabled>⌁</button>
-              <button class="send-button" id="send-button" aria-label="Send message" disabled>↑</button>
-              <button class="stop-button hidden" id="stop-button" aria-label="Stop generation">■</button>
+              <div class="composer-preparation hidden" id="composer-preparation" aria-live="polite">
+                <div><span id="composer-preparation-label">Preparing local model…</span><strong id="composer-preparation-percent">0%</strong></div>
+                <div class="composer-preparation-track"><div id="composer-preparation-fill"></div></div>
+                <button class="hidden" id="composer-preparation-retry">Retry</button>
+              </div>
+              <div class="composer-input-row">
+                <textarea id="prompt-input" rows="1" maxlength="16000" placeholder="Message" aria-label="Message Aether"></textarea>
+              </div>
+              <div class="composer-actions">
+                <div class="attach-wrap">
+                  <button class="round-button" id="attach-button" aria-label="Attach a local file" aria-expanded="false">＋</button>
+                  <div class="attachment-menu hidden" id="attachment-menu" role="menu">
+                    <button data-attach-kind="image" role="menuitem"><span>◉</span><span><strong>Image</strong><small>PNG, JPEG, WebP</small></span></button>
+                    <button data-attach-kind="audio" role="menuitem"><span>●</span><span><strong>Audio file</strong><small>WAV, MP3, M4A, WebM</small></span></button>
+                    <button data-attach-kind="document" role="menuitem"><span>▤</span><span><strong>Document</strong><small>PDF, DOCX, text</small></span></button>
+                  </div>
+                  <input id="file-input" type="file" hidden />
+                </div>
+                <span class="mode-chip" id="composer-mode-chip">Text</span>
+                <button class="round-button" id="mic-button" aria-label="Start recording">●</button>
+                <button class="send-button" id="send-button" aria-label="Send message">↑</button>
+                <button class="stop-button hidden" id="stop-button" aria-label="Stop generation">■</button>
+              </div>
             </div>
-            <p class="composer-hint">Enter to send · Shift+Enter for a new line · No chat history is saved</p>
+            <p class="composer-hint">Chats and attachments are saved only in this browser.</p>
           </div>
         </section>
 
-        <section class="view content-view" id="models-view" data-view-panel="models" hidden>
-          <div class="content-heading">
-            <div><span class="eyebrow">CURATED &amp; VERIFIED</span><h2>Local models</h2><p>Choose one model to keep ready in browser storage.</p></div>
-          </div>
-          <div class="model-grid" id="model-grid"></div>
-        </section>
-
-        <section class="view content-view" id="settings-view" data-view-panel="settings" hidden>
-          <div class="content-heading">
-            <div><span class="eyebrow">PREFERENCES</span><h2>Settings</h2><p>Control optional features and local browser storage.</p></div>
-          </div>
+        <section class="workspace-view settings-view" id="settings-view" hidden>
+          <div class="settings-heading"><span>LOCAL PREFERENCES</span><h1>Settings</h1><p>Manage private browser storage and downloaded models.</p></div>
           <div class="settings-grid">
-            <section class="settings-card">
-              <h3>Optional local features</h3>
-              <label class="setting-row">
-                <span><strong>Speak responses</strong><small>Downloads LFM2.5 Audio only after the first spoken response. WebGPU only, about 1.6 GB.</small></span>
-                <input type="checkbox" id="speak-toggle" />
-              </label>
-            </section>
-            <section class="settings-card">
-              <h3>Browser storage</h3>
-              <dl class="storage-list">
-                <div><dt>Used by this site</dt><dd id="storage-used">Checking…</dd></div>
-                <div><dt>Available quota</dt><dd id="storage-available">Checking…</dd></div>
-                <div><dt>Persistent storage</dt><dd id="storage-persisted">Checking…</dd></div>
-                <div><dt>Selected model</dt><dd id="storage-model">Not cached</dd></div>
-              </dl>
-              <button class="button danger" id="remove-model-button">Remove selected model</button>
-            </section>
-            <section class="settings-card">
-              <h3>Introduction &amp; privacy</h3>
-              <p>Model files download from Hugging Face. Prompts, generated text, microphone audio, and attached images are processed locally and are not sent to an Aether server.</p>
-              <button class="button secondary" id="replay-onboarding">Replay introduction</button>
-            </section>
+            <article class="settings-card"><h2>Storage</h2><dl><div><dt>Site usage</dt><dd id="storage-used">Checking…</dd></div><div><dt>Available</dt><dd id="storage-available">Checking…</dd></div><div><dt>Saved chats</dt><dd id="history-usage">Checking…</dd></div><div><dt>Persistent</dt><dd id="storage-persisted">Checking…</dd></div></dl></article>
+            <article class="settings-card"><h2>Downloaded models</h2><div id="downloaded-model-list" class="downloaded-model-list"></div></article>
+            <article class="settings-card"><h2>Private history</h2><p>Messages and original attachments stay in IndexedDB on this device. Nothing is synchronized.</p><button class="danger-button" id="clear-history-button">Clear all history</button></article>
+            <article class="settings-card"><h2>Introduction</h2><p>Model downloads contact Hugging Face. Inference and saved conversations remain local.</p><button class="secondary-action" id="replay-onboarding">Replay introduction</button></article>
           </div>
         </section>
       </main>
@@ -159,58 +99,30 @@
 
     <div class="sidebar-scrim" id="sidebar-scrim"></div>
 
-    <div class="onboarding-backdrop hidden" id="onboarding-backdrop">
-      <div class="onboarding-dialog" id="onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" tabindex="-1">
-        <div class="stepper" aria-label="Onboarding progress">
-          <span class="active" data-step-dot="1">1</span><i></i><span data-step-dot="2">2</span><i></i><span data-step-dot="3">3</span>
-        </div>
-
-        <section class="onboarding-slide active" data-onboarding-step="1">
-          <img src="/aether-mark.svg" alt="" class="onboarding-mark" />
-          <span class="eyebrow">WELCOME TO AETHER</span>
-          <h2 id="onboarding-title">Private AI in your browser.</h2>
-          <p>Chat with a capable local model without an account. Your prompts and generated answers stay on this device.</p>
-          <div class="benefit-row">
-            <div><span>⌁</span><strong>Runs locally</strong><small>Inference happens in this tab</small></div>
-            <div><span>◇</span><strong>No account</strong><small>Open the app and begin</small></div>
-            <div><span>◉</span><strong>No telemetry</strong><small>Nothing tracks your chats</small></div>
-          </div>
-          <div class="onboarding-actions"><span></span><button class="button primary" data-onboarding-next>Continue</button></div>
+    <div class="modal-backdrop hidden" id="model-modal-backdrop">
+      <section class="model-modal" id="model-modal" role="dialog" aria-modal="true" aria-labelledby="model-modal-title">
+        <header><button class="icon-button" id="close-model-modal" aria-label="Close model picker">×</button><h2 id="model-modal-title">Choose model</h2><span></span></header>
+        <p class="model-modal-intro" id="model-modal-intro">Only verified LFM2.5 models are shown.</p>
+        <div class="model-list" id="model-list"></div>
+        <section class="download-panel hidden" id="download-panel" aria-live="polite">
+          <div class="download-symbol">↓</div><h3 id="download-title">Download selected model</h3><p id="download-stage">Preparing…</p>
+          <div class="download-card"><div><strong id="download-model-name"></strong><span id="download-model-meta"></span></div><div class="progress-track"><div class="progress-fill" id="download-progress"></div></div><p id="download-progress-text"></p></div>
+          <button class="secondary-action" id="cancel-download">Cancel</button>
         </section>
-
-        <section class="onboarding-slide" data-onboarding-step="2" hidden>
-          <div class="slide-icon" aria-hidden="true">↓</div>
-          <span class="eyebrow">ONE-TIME SETUP</span>
-          <h2>Download once, use offline.</h2>
-          <p>The model comes directly from Hugging Face and is stored in this browser. Once the app shell and model are cached, you can return without the internet.</p>
-          <div class="flow-row" aria-label="How setup works">
-            <div><span>1</span><strong>Download</strong><small>From the model publisher</small></div><i>→</i>
-            <div><span>2</span><strong>Store</strong><small>Inside browser storage</small></div><i>→</i>
-            <div><span>3</span><strong>Run</strong><small>Prompts stay on-device</small></div>
-          </div>
-          <div class="honesty-note"><strong>Good to know</strong><span>The initial setup needs a network connection and several hundred MB of free browser storage.</span></div>
-          <div class="onboarding-actions"><button class="button ghost" data-onboarding-back>Back</button><button class="button primary" data-onboarding-next>Continue</button></div>
-        </section>
-
-        <section class="onboarding-slide" data-onboarding-step="3" hidden>
-          <div class="slide-icon success" aria-hidden="true">✓</div>
-          <span class="eyebrow">DEVICE CHECK COMPLETE</span>
-          <h2>Ready for this device.</h2>
-          <p>Aether selected the best verified model for the acceleration available in this browser.</p>
-          <div class="readiness-card">
-            <div><span>Acceleration</span><strong id="onboarding-backend">Checking…</strong></div>
-            <div><span>Recommended model</span><strong id="onboarding-model">Checking…</strong></div>
-            <div><span>Download</span><strong id="onboarding-download">Checking…</strong></div>
-            <div><span>Free storage</span><strong id="onboarding-storage">Checking…</strong></div>
-          </div>
-          <label class="onboarding-model-picker hidden" id="onboarding-model-picker">Choose a model<select id="onboarding-model-select"></select></label>
-          <p class="preflight-message" id="preflight-message"></p>
-          <div class="onboarding-actions"><button class="button ghost" data-onboarding-back>Back</button><div><button class="text-button" id="change-onboarding-model">Change model</button><button class="button primary" id="onboarding-start">Download &amp; start</button></div></div>
-        </section>
-      </div>
+      </section>
     </div>
 
-    <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+    <div class="onboarding-backdrop hidden" id="onboarding-backdrop">
+      <section class="onboarding-dialog" id="onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" tabindex="-1">
+        <div class="onboarding-progress"><span class="active" data-step-dot="1"></span><span data-step-dot="2"></span><span data-step-dot="3"></span></div>
+        <article class="onboarding-slide active" data-onboarding-step="1"><img src="/aether-mark.svg" alt="" /><span>WELCOME TO AETHER</span><h2 id="onboarding-title">Private AI, inside your browser.</h2><p>Use text, vision, and audio models without an account. Prompts and inference stay on this device.</p><footer><span></span><button class="primary-action" data-onboarding-next>Continue</button></footer></article>
+        <article class="onboarding-slide" data-onboarding-step="2"><div class="onboarding-glyph">↓</div><span>DOWNLOAD ONCE</span><h2>Choose only what you need.</h2><p>Each mode asks before downloading an LFM2.5 model. Cached models can work offline after the app shell is ready.</p><footer><button class="secondary-action" data-onboarding-back>Back</button><button class="primary-action" data-onboarding-next>Continue</button></footer></article>
+        <article class="onboarding-slide" data-onboarding-step="3"><div class="onboarding-glyph">⌁</div><span>LOCAL HISTORY</span><h2>Your workspace stays on this device.</h2><p>Chats and attachments are saved locally for your Recents list. Delete one conversation or clear everything at any time.</p><footer><button class="secondary-action" data-onboarding-back>Back</button><button class="primary-action" id="finish-onboarding">Choose text model</button></footer></article>
+      </section>
+    </div>
+
+    <div class="confirm-backdrop hidden" id="confirm-backdrop"><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title"><h2 id="confirm-title">Delete local data?</h2><p id="confirm-copy"></p><div><button class="secondary-action" id="confirm-cancel">Cancel</button><button class="danger-button" id="confirm-accept">Delete</button></div></section></div>
+    <div class="toast-region" id="toast-region" aria-live="polite"></div>
     <script type="module" src="/src/app.ts"></script>
   </body>
 </html>

@@ -7,7 +7,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('storage, cache, and progress', () => {
   it('requires model bytes plus the 25 percent safety margin', () => {
-    const model = recommendedModel('wasm');
+    const model = recommendedModel('text');
     expect(hasStorageCapacity({ usage: 0, quota: 1, available: model.downloadBytes * 1.24, persisted: false }, model)).toBe(false);
     expect(hasStorageCapacity({ usage: 0, quota: 1, available: model.downloadBytes * 1.25, persisted: false }, model)).toBe(true);
     expect(formatBytes(570_000_000)).toMatch(/MB/);
@@ -37,8 +37,14 @@ describe('storage, cache, and progress', () => {
     expect(tracker.update('pipeline', 0, 0, 100, true)).toEqual({ loaded: 1_000, total: 1_000, percent: 100 });
   });
 
+  it('uses the exact observed byte total when the full download completes', () => {
+    const tracker = new DownloadProgressTracker(1_000);
+    tracker.update('model.onnx', 923, 923, 100, false);
+    expect(tracker.update('pipeline', 0, 0, 100, true)).toEqual({ loaded: 923, total: 923, percent: 100 });
+  });
+
   it('detects and removes selected model cache entries only', async () => {
-    const model = recommendedModel('wasm');
+    const model = recommendedModel('text');
     const matching = new Request(`https://huggingface.co/${model.id}/resolve/${model.revision}/model.onnx`);
     const config = new Request(`https://huggingface.co/${model.id}/resolve/${model.revision}/config.json`);
     const tokenizer = new Request(`https://huggingface.co/${model.id}/resolve/${model.revision}/tokenizer.json`);
@@ -52,7 +58,7 @@ describe('storage, cache, and progress', () => {
   });
 
   it('removes obsolete revisions without deleting current model files', async () => {
-    const model = recommendedModel('wasm');
+    const model = recommendedModel('text');
     const current = new Request(`https://huggingface.co/${model.id}/resolve/${model.revision}/model.onnx`);
     const stale = new Request(`https://huggingface.co/${model.id}/resolve/old-revision/model.onnx`);
     const deleteEntry = vi.fn(async (request: Request) => request.url === stale.url);

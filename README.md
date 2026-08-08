@@ -1,116 +1,102 @@
 # Aether Local AI
 
-Aether is a desktop-first, browser-only chat app powered by local models. It uses WebGPU when available, falls back to WASM/CPU, stores model files in browser-managed cache, and never sends prompts to an Aether backend.
+Aether is a browser-only, desktop-first private AI workspace with exactly three modes: **Text**, **Vision**, and **Audio**. Models execute locally through WebGPU. There is no account, cloud inference API, analytics, or telemetry.
 
 ## Quick start
 
-Requirements: Node.js 20.19+ or 22.12+.
+Requires Node.js 20.19+ or 22.12+.
 
 ```bash
 npm ci
 npm run dev
 ```
 
-Open the local URL shown by Vite. The landing page itself does not start an inference worker or fetch model weights. The first setup asks the user to download one selected text model.
-
-Useful commands:
+The app opens without loading an inference worker or model. On first use, the three-slide introduction leads to an explicit model download.
 
 ```bash
-npm run build       # production PWA in dist/
-npm run preview     # serve the production build
-npm run typecheck   # strict TypeScript check
-npm run lint        # ESLint
-npm run test        # unit tests
-npm run test:e2e    # mocked-worker browser tests
-npm run check       # typecheck + lint + unit tests + build
+npm run typecheck
+npm run lint
+npm run test
+npm run test:e2e
+npm run build
+npm run preview
+npm run check
 ```
 
-For the browser suite, install Playwright Chromium once if Chrome is unavailable: `npx playwright install chromium`.
+## Workspace behavior
 
-## What the first-time setup does
+- **Text** provides local chat and can attach images, audio, TXT, Markdown, CSV, JSON, HTML, DOCX, and text-based PDF files.
+- **Vision** opens the image picker immediately, preserves the selected image, and then prepares its local model with compact live progress before enabling Send.
+- **Audio** starts recording or opens the audio picker immediately, then prepares its local model before enabling transcription and Send.
+- **Recents** are filtered by the active mode. Titles come from the first meaningful prompt or attachment, and individual chats can be deleted.
+- **Settings** shows local model/history usage and provides model removal, introduction replay, and confirmed history deletion.
 
-The onboarding is exactly three slides:
+Conversations and original attachment `Blob`s are stored in IndexedDB until deleted. Temporary object URLs are never persisted and are revoked when the active conversation changes. Attachments are limited to five per conversation and 10 MB each. Scanned PDFs are reported as having no extractable text; Aether does not upload them or silently run OCR.
 
-1. Private AI in your browser: local chat, no account, no telemetry.
-2. Download once, use offline: the initial model download comes from Hugging Face and is cached by the browser.
-3. Ready for this device: detected backend, recommended model, download size, free quota, and one Download & Start action.
+PDF.js and Mammoth are lazy-loaded only for PDF and DOCX extraction. Extracted text is chunked locally, ranked against the current question, and limited to half the text model context budget.
 
-After onboarding, Aether remembers only versioned UI preferences and the selected model. Chat content is not persisted. The introduction can be replayed from Settings.
+## Curated LFM 2.5 catalog
 
-## Supported models
+All catalog entries require WebGPU and are pinned to immutable Hugging Face revisions in `src/models.ts`.
 
-| Use | Model | Backend / dtype | Approx. download | License |
+| Mode | Model | Quantization | Approximate download | License |
 | --- | --- | --- | ---: | --- |
-| Recommended | `onnx-community/Qwen3-0.6B-ONNX` | WebGPU / q4f16 | 543.4 MB | Apache-2.0 |
-| CPU fallback | `onnx-community/Qwen2.5-0.5B-Instruct` | WASM / q8 | 488.4 MB | Apache-2.0 |
-| Optional quality | `LiquidAI/LFM2.5-1.2B-Instruct-ONNX` | WebGPU / q4f16 | 725.2 MB | LFM-1.0 |
-| Optional vision | `LiquidAI/LFM2.5-VL-450M-ONNX` | WebGPU / fp16 + q4 | ~770 MB | LFM-1.0 |
-| Optional audio | `LiquidAI/LFM2.5-Audio-1.5B-ONNX` | WebGPU / q4 | ~1.6 GB | LFM-1.0 |
+| Text | LFM2.5-350M | Q4 | 276 MB | LFM-1.0 |
+| Text | LFM2.5-1.2B-Instruct | Q4F16 | 760 MB | LFM-1.0 |
+| Vision | LFM2.5-VL-450M | FP16 encoder + Q4 decoder | 770 MB | LFM-1.0 |
+| Audio | LFM2.5-Audio-1.5B | Q4 | 1.6 GB | LFM-1.0 |
 
-Every catalog entry is pinned to an immutable revision in `src/models.ts`. The quality model is never selected or downloaded automatically. Images use direct LFM2.5 visual reasoning with image follow-up questions. Microphone transcription and spoken answers share LFM2.5 Audio. These optional models are WebGPU-only and download only when first invoked; the media worker disposes vision before audio (and audio before vision) to limit peak memory.
+The official LFM2.5-VL-1.6B ONNX candidate remains hidden: its current export uses a non-Transformers.js session layout and failed the required Chrome/WebGPU smoke test. It can be enabled after a compatible pinned export passes the same test.
 
-## Architecture
-
-- `src/app.ts`: UI orchestration, onboarding, setup recovery, chat, and accessibility.
-- `src/state-machine.ts`: explicit runtime transitions from boot through generation and recovery.
-- `src/models.ts`: verified model catalog and backend selection.
-- `src/text-worker.ts`: single text-generation worker with correlated progress, streaming, cancellation, and disposal.
-- `src/media-worker.ts`: lazy, mutually exclusive LFM2.5 vision and audio runtimes.
-- `src/storage.ts`: quota safety checks, persistent-storage request, cache status, and model removal.
-- `src/preferences.ts`: safe versioned preferences parsing.
-- `src/context.ts` and `src/markdown.ts`: context trimming and sanitized rendering.
-
-Workers dynamically import their inference runtimes, so opening Aether does not evaluate ONNX or fetch model weights. Vite PWA precaches only the small application shell; WASM runtimes and all models stay lazy.
-
-## Browser support
-
-Current desktop Chrome or Edge is recommended. WebGPU is feature-detected, not browser-sniffed, and production must be served over HTTPS. Current Firefox and Safari may work where WebGPU and the required model operations are available. If WebGPU is missing, Aether selects a smaller Qwen 2.5 model and clearly labels the slower CPU/WASM mode.
-
-Mobile layouts are supported visually, including a 390×844 onboarding viewport, but larger-model inference is not promised on mobile hardware.
+The model picker shows the backend, size, license, installed state, and Download/Use/Remove actions. Attachment-driven setup happens automatically after selection: the composer reports aggregate bytes and percentage, keeps Send disabled until readiness, and offers retry after failure. Setup checks browser storage with a 25% safety margin and uses right-side error toasts. Switching between Vision and Audio disposes the previous media runtime; Text uses a separate worker.
 
 ## Privacy, network, and offline behavior
 
-- Model and optional-feature downloads contact Hugging Face.
-- Prompts, generated text, microphone audio, generated speech, and attached images are processed locally.
-- There is no account, server API, analytics, or telemetry.
-- A first visit is not fully offline: both the shell and selected model must finish caching.
-- A cached model can generate without network requests. The service worker does not intercept model downloads; Transformers.js owns that cache.
-- Storage is browser-managed and may be evicted unless persistence is granted. Settings shows usage and lets the user remove the selected model.
+- Model downloads contact Hugging Face. Prompts, documents, images, recordings, inference, and saved history remain on the device.
+- Aether is not fully offline until both the PWA shell and the selected model are cached.
+- The service worker caches only the small UI shell. Transformers.js owns model caching.
+- Cached inference does not require a network request, but browser storage can be evicted when persistent storage is denied.
+- Microphone access is requested only after a user action.
 
-Microphone access is requested only after the microphone button is pressed. Images are restricted to PNG, JPEG, or WebP under 8 MB. LFM2.5 Audio is a large optional download and is unavailable in WASM fallback mode.
+Production must use HTTPS because WebGPU is available only in a secure context. Current desktop Chrome or Edge is recommended. Unsupported browsers see a compatibility screen; there is no misleading CPU fallback. Mobile is responsive but large-model inference is not guaranteed on mobile hardware.
 
-## Deployment
+## Architecture
 
-Run `npm run build`, then serve `dist/` from any static host with HTTPS and SPA fallback to `index.html`. Do not add a server-side inference proxy: this project’s privacy contract is browser-only execution.
+- `src/app.ts`: three-mode UI, model setup, chat orchestration, attachment flows, and toasts.
+- `src/models.ts`: pinned, mode-specific LFM catalog.
+- `src/history.ts`: IndexedDB conversation and Blob persistence.
+- `src/documents.ts`: validation, lazy extraction, chunking, and lexical retrieval.
+- `src/text-worker.ts`: streaming text generation, progress, cancellation, and disposal.
+- `src/media-worker.ts`: mutually exclusive vision/audio runtimes and multimodal context.
+- `src/preferences.ts`: safe versioned preference migration.
+- `src/storage.ts`: quota preflight, persistence request, model cache inspection, and removal.
 
-## Troubleshooting
+## Testing
 
-- **WebGPU unavailable:** update the browser/GPU driver, verify HTTPS, or use the WASM fallback.
-- **Not enough storage:** free at least the displayed model size plus 25%, then retry.
-- **Download interrupted:** reconnect and use Retry setup; cached files can be reused by the browser.
-- **Offline startup fails:** reconnect once so both the PWA shell and selected model can finish caching.
-- **Model runs slowly:** close GPU-heavy tabs, select the smaller fallback, or use a WebGPU-capable desktop browser.
-- **Model cache disappeared:** browser eviction can occur when persistent storage was denied; download it again.
-
-## Dependency audit note
-
-`npm audit` currently reports high advisories inherited from Transformers.js through `onnxruntime-node`/`adm-zip` and Node-only `sharp`; upstream currently offers no complete fix. The production browser build selects `onnxruntime-web`. Its generated compatibility map contains ignored placeholders for the Node adapters, but no callable Node implementation, ZIP parser, or libvips binary. The browser-reachable `protobufjs` advisory is overridden to fixed 7.6.5. Re-check this exception whenever Transformers.js or Liquid's browser-audio adapter is upgraded.
-
-## Real-hardware smoke test
-
-Run this opt-in checklist on each target browser/device:
-
-1. Clear site storage and confirm the landing page fetches no model or inference runtime.
-2. Complete all three slides and download exactly one text model.
-3. Generate one answer, then verify a second answer creates no network requests.
-4. Reload offline and generate from the cached model.
-5. Invoke image reasoning and audio separately; confirm each optional model is absent until invoked and the previous media runtime is disposed when switching.
-6. Remove the selected model in Settings and confirm offline setup reports it missing.
-7. Repeat with WebGPU disabled to validate the WASM fallback.
-
-The automated real-model probes are opt-in because they download large models:
+The normal browser suite uses mocked inference workers but real IndexedDB, file selection, PDF.js, and Mammoth paths:
 
 ```bash
-AETHER_REAL_HARDWARE=1 AETHER_TEST_IMAGE=/absolute/image.png npm run test:e2e -- --grep "real LFM2.5 vision" --project desktop-chrome
-AETHER_REAL_HARDWARE=1 AETHER_TEST_AUDIO=/absolute/speech.wav npm run test:e2e -- --grep "real LFM2.5 audio" --project desktop-chrome
+npm run test:e2e
 ```
+
+Real-model tests are opt-in because they download several gigabytes and require desktop Chrome with WebGPU:
+
+```bash
+AETHER_REAL_HARDWARE=1 npm run test:e2e -- e2e/hardware.spec.ts --project desktop-chrome
+```
+
+Set `AETHER_TEST_IMAGE=/absolute/image.png` and `AETHER_TEST_AUDIO=/absolute/audio.wav` to use representative fixtures. Verify a successful first download, cached reload, offline continuation, model removal, and no network request during cached generation on each supported machine.
+
+## Deployment and troubleshooting
+
+Run `npm run build` and serve `dist/` from an HTTPS static host with SPA fallback to `index.html`.
+
+- **WebGPU unavailable:** update the desktop browser/GPU driver and verify HTTPS.
+- **Not enough storage:** free the displayed model size plus at least 25%, then retry.
+- **Download interrupted:** reconnect and retry; already cached files may be reused.
+- **Document has no text:** use a text-based PDF or a supported text/DOCX file; OCR is intentionally not included.
+- **Model is slow or crashes:** close GPU-heavy tabs and choose the smaller model for that mode.
+
+## Dependency audit exception
+
+`npm audit` currently reports five high advisories inherited through Node-only `onnxruntime-node`, `adm-zip`, and `sharp` paths. The browser production graph uses `onnxruntime-web`; these Node adapters and native binaries are not callable from the browser bundle. The browser-reachable `protobufjs` version is overridden to fixed 7.6.5. Re-audit this documented exception whenever Transformers.js or the Liquid audio adapter is upgraded. No high or critical browser-runtime-reachable advisory is accepted.

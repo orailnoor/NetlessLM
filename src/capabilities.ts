@@ -13,6 +13,7 @@ export interface CapabilityReport {
 }
 
 export async function detectWebGPU(): Promise<boolean> {
+  if (import.meta.env.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).get('forceNoWebGPU') === '1') return false;
   const gpu = (navigator as GPUCapableNavigator).gpu;
   if (!gpu) return false;
   try {
