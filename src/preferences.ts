@@ -15,7 +15,8 @@ export function defaultPreferences(): AppPreferencesV2 {
       vision: recommendedModel('vision').id,
       audio: recommendedModel('audio').id
     },
-    compactSidebar: false
+    compactSidebar: false,
+    theme: 'dark'
   };
 }
 
@@ -36,7 +37,8 @@ export function parsePreferences(value: string | null, legacyValue: string | nul
           onboardingComplete: parsed.onboardingComplete === true,
           activeMode: MODES.includes(parsed.activeMode as AppMode) ? parsed.activeMode as AppMode : 'text',
           selectedModelByMode: selections,
-          compactSidebar: parsed.compactSidebar === true
+          compactSidebar: parsed.compactSidebar === true,
+          theme: (['dark', 'light', 'system'].includes(parsed.theme as string) ? parsed.theme : 'dark') as AppPreferencesV2['theme']
         };
       }
     }

@@ -23,12 +23,15 @@ export interface ModelDescriptor {
   supportsThinking?: boolean;
 }
 
+export type ThemeMode = 'dark' | 'light' | 'system';
+
 export interface AppPreferencesV2 {
   version: 2;
   onboardingComplete: boolean;
   activeMode: AppMode;
   selectedModelByMode: Record<AppMode, string>;
   compactSidebar: boolean;
+  theme: ThemeMode;
 }
 
 export type RuntimeState =

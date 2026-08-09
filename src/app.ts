@@ -34,7 +34,8 @@ import type {
   ConversationRecordV1,
   EngineProgress,
   ModelDescriptor,
-  PersistedMessageV1
+  PersistedMessageV1,
+  ThemeMode
 } from './types';
 
 function element<T extends HTMLElement>(id: string): T {
@@ -135,6 +136,40 @@ async function modelIsCached(model: ModelDescriptor): Promise<boolean> {
 function selectedModel(mode = activeMode): ModelDescriptor {
   const selected = getModel(preferences.selectedModelByMode[mode]);
   return selected?.mode === mode ? selected : recommendedModel(mode);
+}
+
+const THEME_ICONS: Record<ThemeMode, string> = {
+  dark: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>',
+  light: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>',
+  system: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>'
+};
+
+function applyTheme(theme: ThemeMode): void {
+  preferences.theme = theme;
+  savePreferences(preferences);
+  document.documentElement.setAttribute('data-theme', theme);
+  const themeToggle = document.getElementById('theme-toggle-button');
+  if (themeToggle) {
+    themeToggle.innerHTML = THEME_ICONS[theme] ?? THEME_ICONS.dark;
+  }
+  const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+  if (metaThemeColor) {
+    const isLight = theme === 'light' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches);
+    metaThemeColor.setAttribute('content', isLight ? '#f4f5f8' : '#080909');
+  }
+  document.querySelectorAll('#theme-button-group .theme-option').forEach((button) => {
+    const btn = button as HTMLButtonElement;
+    btn.classList.toggle('active', btn.dataset.themeValue === theme);
+  });
+}
+
+function toggleTheme(): void {
+  const nextTheme: Record<ThemeMode, ThemeMode> = {
+    dark: 'light',
+    light: 'system',
+    system: 'dark'
+  };
+  applyTheme(nextTheme[preferences.theme] ?? 'dark');
 }
 
 function showToast(message: string, tone: 'default' | 'success' | 'error' = 'default', duration = 4500): void {
@@ -1188,6 +1223,16 @@ function bindEvents(): void {
   document.querySelectorAll<HTMLButtonElement>('[data-onboarding-next]').forEach((button) => button.addEventListener('click', () => { onboardingStep = Math.min(3, onboardingStep + 1); updateOnboarding(); }));
   document.querySelectorAll<HTMLButtonElement>('[data-onboarding-back]').forEach((button) => button.addEventListener('click', () => { onboardingStep = Math.max(1, onboardingStep - 1); updateOnboarding(); }));
   element('finish-onboarding').addEventListener('click', async () => { preferences.onboardingComplete = true; savePreferences(preferences); hideOnboarding(); await openModelPicker(); });
+  element('theme-toggle-button').addEventListener('click', toggleTheme);
+  document.querySelectorAll<HTMLButtonElement>('#theme-button-group .theme-option').forEach((button) => {
+    button.addEventListener('click', () => {
+      const mode = button.dataset.themeValue as ThemeMode;
+      if (mode) applyTheme(mode);
+    });
+  });
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+    if (preferences.theme === 'system') applyTheme('system');
+  });
   window.addEventListener('online', () => showToast('Back online.', 'success')); window.addEventListener('offline', () => showToast('Offline. Cached models remain available.', 'error'));
   window.addEventListener('beforeunload', revokeObjectUrls);
 }
@@ -1210,6 +1255,7 @@ async function initialize(): Promise<void> {
   bindEvents();
   capabilities = await detectCapabilities();
   preferences = loadPreferences();
+  applyTheme(preferences.theme);
   activeMode = preferences.activeMode;
   updateModeNavigation();
   await Promise.all([renderRecents(), renderEmptyState()]);
