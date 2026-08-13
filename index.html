@@ -1,327 +1,127 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Offline Browser AI Companion</title>
-    <link rel="stylesheet" href="./style.css">
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-</head>
-<body>
-    <div class="app-container">
-        <!-- Left Navigation Sidebar (Jan AI Style) -->
-        <nav class="nav-sidebar">
-            <div class="nav-logo">
-                <svg class="logo-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="url(#nav-logo-grad)" stroke="#818CF8" stroke-width="1" stroke-linejoin="round"/>
-                    <path d="M2 17L12 22L22 17" stroke="#818CF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M2 12L12 17L22 12" stroke="#6366F1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <defs>
-                        <linearGradient id="nav-logo-grad" x1="2" y1="2" x2="22" y2="12" gradientUnits="userSpaceOnUse">
-                            <stop stop-color="#818CF8"/>
-                            <stop offset="1" stop-color="#C084FC"/>
-                        </linearGradient>
-                    </defs>
-                </svg>
-            </div>
-            <div class="nav-items">
-                <button class="nav-item active" id="nav-chat-btn" title="Chat Session">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                    <span class="nav-label">Chat</span>
-                </button>
-                <button class="nav-item" id="nav-hub-btn" title="Model Hub">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-                    <span class="nav-label">Hub</span>
-                </button>
-            </div>
-            <div class="nav-footer">
-                <button class="nav-item" id="nav-settings-btn" title="System Settings / Diagnostics">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                    <span class="nav-label">Settings</span>
-                </button>
-            </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111111" />
+    <meta name="description" content="Private LFM2.5 AI that runs in your browser." />
+    <title>Aether — Private Local AI</title>
+    <link rel="icon" href="/aether-mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="app-frame" id="app-shell">
+      <aside class="sidebar" id="sidebar" aria-label="Aether navigation">
+        <div class="sidebar-head">
+          <div class="brand"><img src="/aether-mark.svg" alt="" /><span>Aether</span></div>
+          <button class="icon-button sidebar-close" id="sidebar-close" aria-label="Close navigation"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <button class="new-chat-button" id="new-chat-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>New chat</span></button>
+        <nav class="mode-nav" aria-label="AI modes">
+          <span class="nav-label">Modes</span>
+          <button class="mode-button active" data-mode="text" aria-current="page"><span class="mode-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span>Text</span></button>
+          <button class="mode-button" data-mode="vision"><span class="mode-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/></svg></span><span>Vision</span></button>
+          <button class="mode-button" data-mode="audio"><span class="mode-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></span><span>Audio</span></button>
         </nav>
+        <section class="recent-section" aria-labelledby="recent-title">
+          <div class="recent-heading"><span class="nav-label" id="recent-title">Recents</span><span id="history-count"></span></div>
+          <div class="recent-list" id="recent-list"></div>
+          <p class="recent-empty" id="recent-empty">Your local conversations appear here.</p>
+        </section>
+        <button class="settings-button" id="settings-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span>Settings</span></button>
+      </aside>
 
-        <!-- Sidebar / Status Panel -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-toggle-close" id="sidebar-close-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      <main class="workspace">
+        <header class="workspace-header">
+          <button class="icon-button menu-button" id="menu-button" aria-label="Open navigation"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+          <button class="model-pill" id="model-pill" aria-label="Choose local model">
+            <span id="active-model-name">Choose model</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="header-right-actions">
+            <button class="icon-button theme-toggle-button" id="theme-toggle-button" aria-label="Toggle theme" title="Toggle dark/light theme"></button>
+            <button class="icon-button header-new-chat" id="header-new-chat" aria-label="Start a new chat" title="Start new chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          </div>
+        </header>
+
+        <section class="workspace-view active" id="chat-view">
+          <div class="privacy-banner">Local AI can make mistakes. Check important information.</div>
+          <div class="chat-scroll" id="chat-messages" aria-live="polite"></div>
+
+          <section class="empty-state" id="empty-state">
+            <div class="empty-icon" id="empty-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg></div>
+            <h1 id="empty-title">Choose a model to begin</h1>
+            <p id="empty-description">Models run locally on this device.</p>
+            <div class="empty-actions">
+              <button class="primary-action" id="empty-primary">Choose model</button>
+              <button class="secondary-action hidden" id="empty-secondary"></button>
             </div>
+          </section>
 
-            <div class="brand">
-                <div class="logo-container">
-                    <svg class="logo-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="url(#logo-grad)" stroke="#818CF8" stroke-width="1" stroke-linejoin="round"/>
-                        <path d="M2 17L12 22L22 17" stroke="#818CF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M2 12L12 17L22 12" stroke="#6366F1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        <defs>
-                            <linearGradient id="logo-grad" x1="2" y1="2" x2="22" y2="12" gradientUnits="userSpaceOnUse">
-                                <stop stop-color="#818CF8"/>
-                                <stop offset="1" stop-color="#C084FC"/>
-                            </linearGradient>
-                        </defs>
-                    </svg>
+          <div class="composer-dock hidden" id="composer-dock">
+            <div class="attachment-tray" id="attachment-tray"></div>
+            <div class="composer">
+              <div class="composer-preparation hidden" id="composer-preparation" aria-live="polite">
+                <div><span id="composer-preparation-label">Preparing local model…</span><strong id="composer-preparation-percent">0%</strong></div>
+                <div class="composer-preparation-track"><div id="composer-preparation-fill"></div></div>
+                <button class="hidden" id="composer-preparation-retry">Retry</button>
+              </div>
+              <div class="composer-input-row">
+                <textarea id="prompt-input" rows="1" maxlength="16000" placeholder="Message" aria-label="Message Aether"></textarea>
+              </div>
+              <div class="composer-actions">
+                <div class="attach-wrap">
+                  <button class="round-button" id="attach-button" aria-label="Attach document"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                  <input id="file-input" type="file" hidden />
                 </div>
-                <div class="brand-text">
-                    <h1>AETHER</h1>
-                    <span class="badge">Local WebGPU Engine</span>
-                </div>
+                <button class="thinking-toggle hidden" id="thinking-toggle" type="button" aria-label="Thinking enabled" aria-pressed="true" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg><span>Think</span></button>
+                <button class="round-button hidden" id="mic-button" aria-label="Start recording"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></button>
+                <button class="send-button" id="send-button" aria-label="Send message"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+                <button class="stop-button hidden" id="stop-button" aria-label="Stop generation"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button>
+              </div>
             </div>
+            <p class="composer-hint">Chats and attachments are saved only in this browser.</p>
+          </div>
+        </section>
 
-            <!-- Configuration / Device Selection -->
-            <div class="section config-section">
-                <h2 class="section-title">Hardware Acceleration</h2>
-                <div class="toggle-group">
-                    <label class="toggle-btn">
-                        <input type="radio" name="device" value="webgpu" checked id="device-webgpu">
-                        <span>WebGPU (Active)</span>
-                    </label>
-                    <label class="toggle-btn">
-                        <input type="radio" name="device" value="wasm" id="device-wasm">
-                        <span>WASM (CPU)</span>
-                    </label>
-                </div>
-                <div id="webgpu-status-text" class="status-helper">Detecting WebGPU support...</div>
-            </div>
-
-            <!-- Model Load States -->
-            <div class="section models-section">
-                <h2 class="section-title">Model Cache Diagnostics</h2>
-                
-                <div class="model-status-card" id="status-chat">
-                    <div class="status-header">
-                        <div class="model-info">
-                            <span class="status-dot dot-chat"></span>
-                            <span class="model-name" id="diagnostic-chat-name">LLM (Liquid 1.2B)</span>
-                        </div>
-                        <span class="status-indicator waiting">Inactive</span>
-                    </div>
-                    <div class="progress-bar-container"><div class="progress-bar" style="width: 0%"></div></div>
-                    <div class="progress-details">0% downloaded</div>
-                </div>
-
-                <div class="model-status-card" id="status-asr">
-                    <div class="status-header">
-                        <div class="model-info">
-                            <span class="status-dot dot-asr"></span>
-                            <span class="model-name">STT (Whisper)</span>
-                        </div>
-                        <span class="status-indicator waiting">Inactive</span>
-                    </div>
-                    <div class="progress-bar-container"><div class="progress-bar" style="width: 0%"></div></div>
-                    <div class="progress-details">0% downloaded</div>
-                </div>
-
-                <div class="model-status-card" id="status-tts">
-                    <div class="status-header">
-                        <div class="model-info">
-                            <span class="status-dot dot-tts"></span>
-                            <span class="model-name">TTS (Kokoro)</span>
-                        </div>
-                        <span class="status-indicator waiting">Inactive</span>
-                    </div>
-                    <div class="progress-bar-container"><div class="progress-bar" style="width: 0%"></div></div>
-                    <div class="progress-details">0% downloaded</div>
-                </div>
-
-                <div class="model-status-card" id="status-vision">
-                    <div class="status-header">
-                        <div class="model-info">
-                            <span class="status-dot dot-vision"></span>
-                            <span class="model-name">Vision (ViT-GPT2)</span>
-                        </div>
-                        <span class="status-indicator lazy">Lazy-loaded</span>
-                    </div>
-                    <div class="progress-bar-container"><div class="progress-bar" style="width: 0%"></div></div>
-                    <div class="progress-details">Loads on image upload</div>
-                </div>
-            </div>
-
-            <!-- Controls -->
-            <div class="section voice-config">
-                <h2 class="section-title">Acoustic Synthesis</h2>
-                <div class="input-field">
-                    <label for="voice-select" class="field-label">Synthesized Voice</label>
-                    <div class="select-wrapper">
-                        <select id="voice-select">
-                            <option value="af_sky" selected>Sky (Female - Natural)</option>
-                            <option value="af_bella">Bella (Female - Clear)</option>
-                            <option value="af_sarah">Sarah (Female - Warm)</option>
-                            <option value="am_adam">Adam (Male - Conversational)</option>
-                            <option value="am_michael">Michael (Male - Expressive)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="toggle-field">
-                    <label for="tts-speech-toggle" class="checkbox-container">
-                        <input type="checkbox" id="tts-speech-toggle" checked>
-                        <span class="checkmark"></span>
-                        Enable Voice Synthesis
-                    </label>
-                </div>
-            </div>
-
-            <div class="sidebar-footer">
-                <p>Protected by local sandboxing. All calculations are executed on device.</p>
-            </div>
-        </aside>
-
-        <!-- Main Content Wrapper -->
-        <main class="main-content">
-            <!-- Loading Modal Overlay -->
-            <div id="init-overlay" class="overlay">
-                <div class="overlay-content">
-                    <div class="logo-spinner">
-                        <div class="spinner-ring"></div>
-                        <div class="logo-core">⚡</div>
-                    </div>
-                    <h2>Initialize Local AI Engine</h2>
-                    <p id="init-status">Setting up Web Worker thread...</p>
-                    <button id="start-btn" disabled>Detecting hardware...</button>
-                </div>
-            </div>
-
-            <!-- Chat View Panel -->
-            <div class="view-panel active" id="chat-view">
-                <!-- Mobile header toggler -->
-                <header class="mobile-nav-bar">
-                    <button class="mobile-toggle-btn" id="sidebar-open-btn">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-                    </button>
-                    <div class="mobile-brand">AETHER AI</div>
-                </header>
-
-                <!-- Chat Header with Model Selector -->
-                <header class="chat-header">
-                    <div class="header-left">
-                        <div class="session-title-wrap">
-                            <h2>Secure Sandbox</h2>
-                            <span class="status-pulse-dot"></span>
-                        </div>
-                    </div>
-
-                    <!-- Jan AI style Model Selector -->
-                    <div class="model-selector-container">
-                        <button class="model-selector-trigger" id="model-selector-trigger" title="Select Local Model">
-                            <span class="model-selector-icon">⚡</span>
-                            <span class="model-selector-name" id="selected-model-name">Liquid LFM-2.5 1.2B</span>
-                            <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                        </button>
-                        <div class="model-selector-dropdown hidden" id="model-selector-dropdown">
-                            <!-- Populated dynamically via JS -->
-                        </div>
-                    </div>
-
-                    <div class="header-right">
-                        <button id="clear-btn" class="text-icon-btn" title="Clear Chat">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                            Clear History
-                        </button>
-                    </div>
-                </header>
-
-                <!-- Chat Message Logs -->
-                <div class="chat-messages" id="chat-messages">
-                    <div class="message system">
-                        <div class="msg-content">
-                            <div class="system-intro-card">
-                                <div class="system-intro-logo">⚡</div>
-                                <h3>Welcome to Aether Local AI</h3>
-                                <p>All processing runs <strong>100% locally</strong> inside your web browser. E2E privacy is preserved. No remote API requests are made.</p>
-                                <div class="system-capabilities">
-                                    <span class="cap-pill">💧 Liquid 1.2B (Thinking)</span>
-                                    <span class="cap-pill">🎙️ Whisper Dictation</span>
-                                    <span class="cap-pill">🔊 Kokoro Vocalizer</span>
-                                    <span class="cap-pill">🖼️ ViT Vision</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Image preview bar -->
-                <div id="image-preview-container" class="image-preview-bar hidden">
-                    <div class="preview-wrap">
-                        <img id="image-preview" src="" alt="Selected image">
-                        <button id="remove-image-btn" class="close-btn" aria-label="Remove image">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                        </button>
-                    </div>
-                    <div class="image-loading-overlay hidden" id="image-analyzing">
-                        <div class="mini-spinner"></div>
-                        <span class="pulse-text">Interpreting pixels locally...</span>
-                    </div>
-                </div>
-
-                <!-- Input area -->
-                <footer class="chat-input-container">
-                    <div class="input-actions-bar">
-                        <!-- Image drop / Upload button -->
-                        <label class="icon-action-btn" title="Attach Image">
-                            <input type="file" id="image-input" accept="image/*" style="display: none;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                            <span>Attach Image</span>
-                        </label>
-                        <span id="uploaded-info" class="action-status-text"></span>
-                    </div>
-
-                    <div class="input-row">
-                        <textarea id="prompt-input" placeholder="Initiate a dialogue..." rows="1" disabled></textarea>
-                        
-                        <!-- Microphone STT button -->
-                        <button id="mic-btn" class="circular-control-btn mic-action" title="Voice Input" disabled>
-                            <svg class="mic-svg" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                        </button>
-                        
-                        <button id="send-btn" class="circular-control-btn send-action primary" title="Send message" disabled>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                        </button>
-                    </div>
-
-                    <!-- Dictation / Wave visualizer -->
-                    <div id="mic-recording-status" class="recording-status-overlay hidden">
-                        <div class="audio-wave-bars">
-                            <span class="bar bar-1"></span>
-                            <span class="bar bar-2"></span>
-                            <span class="bar bar-3"></span>
-                            <span class="bar bar-4"></span>
-                            <span class="bar bar-5"></span>
-                        </div>
-                        <span id="recording-text">Processing acoustics...</span>
-                    </div>
-                </footer>
-            </div>
-
-            <!-- Model Hub View Panel -->
-            <div class="view-panel" id="hub-view" style="display: none;">
-                <header class="hub-header">
-                    <div class="hub-title-wrap">
-                        <h2>Model Hub</h2>
-                        <p class="hub-subtitle">Explore and run open-source models directly in your browser Sandbox.</p>
-                    </div>
-                    <div class="hub-search-container">
-                        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                        <input type="text" id="hub-search-input" placeholder="Search local models by keyword...">
-                    </div>
-                </header>
-
-                <div class="hub-filters">
-                    <button class="filter-tab active" data-filter="all">All Models</button>
-                    <button class="filter-tab" data-filter="text">Text Generation</button>
-                    <button class="filter-tab" data-filter="multimodal">Vision & Audio</button>
-                </div>
-
-                <div class="hub-grid" id="hub-grid">
-                    <!-- Populated dynamically via JS -->
-                </div>
-            </div>
-        </main>
+        <section class="workspace-view settings-view" id="settings-view" hidden>
+          <div class="settings-heading"><span>LOCAL PREFERENCES</span><h1>Settings</h1><p>Manage private browser storage and downloaded models.</p></div>
+          <div class="settings-grid">
+            <article class="settings-card"><h2>Storage</h2><dl><div><dt>Site usage</dt><dd id="storage-used">Checking…</dd></div><div><dt>Available</dt><dd id="storage-available">Checking…</dd></div><div><dt>Saved chats</dt><dd id="history-usage">Checking…</dd></div><div><dt>Persistent</dt><dd id="storage-persisted">Checking…</dd></div></dl></article>
+            <article class="settings-card"><h2>Downloaded models</h2><div id="downloaded-model-list" class="downloaded-model-list"></div></article>
+            <article class="settings-card"><h2>Private history</h2><p>Messages and original attachments stay in IndexedDB on this device. Nothing is synchronized.</p><button class="danger-button" id="clear-history-button">Clear all history</button></article>
+            <article class="settings-card"><h2>Appearance</h2><p>Choose theme style for Aether UI.</p><div class="theme-button-group" id="theme-button-group"><button class="theme-option active" data-theme-value="dark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg><span>Dark</span></button><button class="theme-option" data-theme-value="light"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><span>Light</span></button><button class="theme-option" data-theme-value="system"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg><span>System</span></button></div></article>
+            <article class="settings-card"><h2>Introduction</h2><p>Model downloads contact Hugging Face. Inference and saved conversations remain local.</p><button class="secondary-action" id="replay-onboarding">Replay introduction</button></article>
+          </div>
+        </section>
+      </main>
     </div>
 
-    <!-- Main JS Orchestrator -->
-    <script type="module" src="./app.js"></script>
-</body>
+    <div class="sidebar-scrim" id="sidebar-scrim"></div>
+
+    <div class="modal-backdrop hidden" id="model-modal-backdrop">
+      <section class="model-modal" id="model-modal" role="dialog" aria-modal="true" aria-labelledby="model-modal-title">
+        <header><button class="icon-button" id="close-model-modal" aria-label="Close model picker">×</button><h2 id="model-modal-title">Choose model</h2><span></span></header>
+        <p class="model-modal-intro" id="model-modal-intro">Only verified LFM2.5 models are shown.</p>
+        <div class="model-list" id="model-list"></div>
+        <section class="download-panel hidden" id="download-panel" aria-live="polite">
+          <div class="download-symbol">↓</div><h3 id="download-title">Download selected model</h3><p id="download-stage">Preparing…</p>
+          <div class="download-card"><div><strong id="download-model-name"></strong><span id="download-model-meta"></span></div><div class="progress-track"><div class="progress-fill" id="download-progress"></div></div><p id="download-progress-text"></p></div>
+          <button class="secondary-action" id="cancel-download">Cancel</button>
+        </section>
+      </section>
+    </div>
+
+    <div class="onboarding-backdrop hidden" id="onboarding-backdrop">
+      <section class="onboarding-dialog" id="onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" tabindex="-1">
+        <div class="onboarding-progress"><span class="active" data-step-dot="1"></span><span data-step-dot="2"></span><span data-step-dot="3"></span></div>
+        <article class="onboarding-slide active" data-onboarding-step="1"><img src="/aether-mark.svg" alt="" /><span>WELCOME TO AETHER</span><h2 id="onboarding-title">Private AI, inside your browser.</h2><p>Use text, vision, and audio models without an account. Prompts and inference stay on this device.</p><footer><span></span><button class="primary-action" data-onboarding-next>Continue</button></footer></article>
+        <article class="onboarding-slide" data-onboarding-step="2"><div class="onboarding-glyph">↓</div><span>DOWNLOAD ONCE</span><h2>Choose only what you need.</h2><p>Each mode asks before downloading an LFM2.5 model. Cached models can work offline after the app shell is ready.</p><footer><button class="secondary-action" data-onboarding-back>Back</button><button class="primary-action" data-onboarding-next>Continue</button></footer></article>
+        <article class="onboarding-slide" data-onboarding-step="3"><div class="onboarding-glyph">⌁</div><span>LOCAL HISTORY</span><h2>Your workspace stays on this device.</h2><p>Chats and attachments are saved locally for your Recents list. Delete one conversation or clear everything at any time.</p><footer><button class="secondary-action" data-onboarding-back>Back</button><button class="primary-action" id="finish-onboarding">Choose text model</button></footer></article>
+      </section>
+    </div>
+
+    <div class="confirm-backdrop hidden" id="confirm-backdrop"><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title"><h2 id="confirm-title">Delete local data?</h2><p id="confirm-copy"></p><div><button class="secondary-action" id="confirm-cancel">Cancel</button><button class="danger-button" id="confirm-accept">Delete</button></div></section></div>
+    <div class="toast-region" id="toast-region" aria-live="polite"></div>
+    <script type="module" src="/src/app.ts"></script>
+  </body>
 </html>
