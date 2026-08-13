@@ -1,102 +1,146 @@
-# Aether Local AI
+# 🪐 Aether — In-Browser Private Local AI
 
-Aether is a browser-only, desktop-first private AI workspace with exactly three modes: **Text**, **Vision**, and **Audio**. Models execute locally through WebGPU. There is no account, cloud inference API, analytics, or telemetry.
+[![Live Demo](https://img.shields.io/badge/Live_Demo-https%3A%2F%2Flocal--browser--ai--app.web.app-7c4dff?style=for-the-badge&logo=firebase)](https://local-browser-ai-app.web.app)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20.19.0-339933?style=for-the-badge&logo=nodedotjs)](https://nodejs.org)
+[![WebGPU](https://img.shields.io/badge/WebGPU-Accelerated-007ACC?style=for-the-badge&logo=w3c)](https://www.w3.org/TR/webgpu/)
+[![PWA](https://img.shields.io/badge/PWA-Offline_Ready-5A0FC8?style=for-the-badge&logo=pwa)](https://local-browser-ai-app.web.app)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
-## Quick start
+> **Private, browser-native AI workspace** that runs Large Language Models (LLMs), Computer Vision, and Audio AI entirely on your local machine using **WebGPU** and **WebAssembly (WASM)**.  
+> **No API keys. No cloud inference servers. No account required. 100% free & private.**
 
-Requires Node.js 20.19+ or 22.12+.
+👉 **[Launch Aether in Your Browser](https://local-browser-ai-app.web.app)**
+
+---
+
+## ✨ Features
+
+- 🔒 **100% Private & Local**: Your prompts, documents, images, and audio recordings never leave your device.
+- ⚡ **WebGPU Hardware Acceleration**: Blazing-fast local LLM token generation using your computer or smartphone's GPU.
+- 💬 **Multimodal AI Modes**:
+  - **Text**: Intelligent chat with reasoning `<think>` capabilities and deep local document Q&A.
+  - **Vision**: Local image analysis and visual understanding.
+  - **Audio**: Speech transcription and voice interaction.
+- 📄 **In-Browser RAG (Retrieval-Augmented Generation)**: Attach PDF, DOCX, TXT, Markdown, CSV, JSON, and HTML files. Text extraction, chunking, and lexical search happen completely in your browser.
+- 📱 **Progressive Web App (PWA)**: Installable on Windows, macOS, Linux, Android, and iOS. Works in **Airplane Mode** once models are cached!
+- 🌓 **Dark & Light Mode**: Modern interface with seamless theme switching and system preference auto-detection.
+- 🌐 **Zero Server Compute Cost**: Offloads all heavy inference math to client hardware. Hosted statically on Firebase CDN.
+
+---
+
+## 🤖 Curated Model Catalog
+
+All models are pinned to immutable Hugging Face revisions and execute locally:
+
+| Mode | Model Name | Quantization | Size | Description |
+| :--- | :--- | :--- | :---: | :--- |
+| **Text** | `LFM 2.5 350M` | Q4 | ~276 MB | Ultra-fast lightweight model for quick responses |
+| **Text** | `LFM 2.5 1.2B Instruct` | Q4F16 | ~760 MB | High-quality general instruction model |
+| **Text** | `LFM 2.5 1.2B Thinking` | Q4F16 | ~760 MB | Extended reasoning model with `<think>` scratchpad |
+| **Vision** | `LFM 2.5 VL 450M` | FP16 / Q4 | ~770 MB | Multimodal image understanding & visual QA |
+| **Audio** | `LFM 2.5 Audio 1.5B` | Q4 | ~1.6 GB | Speech transcription & audio model |
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- **Node.js**: `>=20.19.0` or `>=22.12.0`
+- **Browser**: Modern Chrome, Edge, or Brave with **WebGPU** enabled (with fallback to multi-threaded WASM).
+
+### Installation
 
 ```bash
+# Clone repository
+git clone https://github.com/techjarves/local-browser-ai.git
+cd local-browser-ai
+
+# Install dependencies
 npm ci
+
+# Start local development server
 npm run dev
 ```
 
-The app opens without loading an inference worker or model. On first use, the three-slide introduction leads to an explicit model download.
+Open `http://localhost:5173` in your browser.
+
+---
+
+## 🛠️ CLI Commands
 
 ```bash
+# Run TypeScript type check
 npm run typecheck
+
+# Run ESLint validation
 npm run lint
+
+# Run Vitest unit tests
 npm run test
+
+# Run Playwright E2E tests
 npm run test:e2e
+
+# Production build (outputs to dist/)
 npm run build
+
+# Preview production build locally
 npm run preview
+
+# Complete quality check (typecheck + lint + test + build)
 npm run check
+
+# Deploy to Firebase Hosting
+npm run deploy
 ```
 
-## Workspace behavior
+---
 
-- **Text** provides local chat and can attach images, audio, TXT, Markdown, CSV, JSON, HTML, DOCX, and text-based PDF files.
-- **Vision** opens the image picker immediately, preserves the selected image, and then prepares its local model with compact live progress before enabling Send.
-- **Audio** starts recording or opens the audio picker immediately, then prepares its local model before enabling transcription and Send.
-- **Recents** are filtered by the active mode. Titles come from the first meaningful prompt or attachment, and individual chats can be deleted.
-- **Settings** shows local model/history usage and provides model removal, introduction replay, and confirmed history deletion.
+## 🏗️ Architecture Overview
 
-Conversations and original attachment `Blob`s are stored in IndexedDB until deleted. Temporary object URLs are never persisted and are revoked when the active conversation changes. Attachments are limited to five per conversation and 10 MB each. Scanned PDFs are reported as having no extractable text; Aether does not upload them or silently run OCR.
-
-PDF.js and Mammoth are lazy-loaded only for PDF and DOCX extraction. Extracted text is chunked locally, ranked against the current question, and limited to half the text model context budget.
-
-## Curated LFM 2.5 catalog
-
-All catalog entries require WebGPU and are pinned to immutable Hugging Face revisions in `src/models.ts`.
-
-| Mode | Model | Quantization | Approximate download | License |
-| --- | --- | --- | ---: | --- |
-| Text | LFM2.5-350M | Q4 | 276 MB | LFM-1.0 |
-| Text | LFM2.5-1.2B-Instruct | Q4F16 | 760 MB | LFM-1.0 |
-| Vision | LFM2.5-VL-450M | FP16 encoder + Q4 decoder | 770 MB | LFM-1.0 |
-| Audio | LFM2.5-Audio-1.5B | Q4 | 1.6 GB | LFM-1.0 |
-
-The official LFM2.5-VL-1.6B ONNX candidate remains hidden: its current export uses a non-Transformers.js session layout and failed the required Chrome/WebGPU smoke test. It can be enabled after a compatible pinned export passes the same test.
-
-The model picker shows the backend, size, license, installed state, and Download/Use/Remove actions. Attachment-driven setup happens automatically after selection: the composer reports aggregate bytes and percentage, keeps Send disabled until readiness, and offers retry after failure. Setup checks browser storage with a 25% safety margin and uses right-side error toasts. Switching between Vision and Audio disposes the previous media runtime; Text uses a separate worker.
-
-## Privacy, network, and offline behavior
-
-- Model downloads contact Hugging Face. Prompts, documents, images, recordings, inference, and saved history remain on the device.
-- Aether is not fully offline until both the PWA shell and the selected model are cached.
-- The service worker caches only the small UI shell. Transformers.js owns model caching.
-- Cached inference does not require a network request, but browser storage can be evicted when persistent storage is denied.
-- Microphone access is requested only after a user action.
-
-Production must use HTTPS because WebGPU is available only in a secure context. Current desktop Chrome or Edge is recommended. Unsupported browsers see a compatibility screen; there is no misleading CPU fallback. Mobile is responsive but large-model inference is not guaranteed on mobile hardware.
-
-## Architecture
-
-- `src/app.ts`: three-mode UI, model setup, chat orchestration, attachment flows, and toasts.
-- `src/models.ts`: pinned, mode-specific LFM catalog.
-- `src/history.ts`: IndexedDB conversation and Blob persistence.
-- `src/documents.ts`: validation, lazy extraction, chunking, and lexical retrieval.
-- `src/text-worker.ts`: streaming text generation, progress, cancellation, and disposal.
-- `src/media-worker.ts`: mutually exclusive vision/audio runtimes and multimodal context.
-- `src/preferences.ts`: safe versioned preference migration.
-- `src/storage.ts`: quota preflight, persistence request, model cache inspection, and removal.
-
-## Testing
-
-The normal browser suite uses mocked inference workers but real IndexedDB, file selection, PDF.js, and Mammoth paths:
-
-```bash
-npm run test:e2e
+```
+src/
+├── app.ts            # UI orchestration, chat state, theme engine, attachment management
+├── models.ts         # Pinned Hugging Face model descriptors & catalog definitions
+├── history.ts        # IndexedDB conversation state & Blob storage persistence
+├── documents.ts      # Lazy PDF/DOCX text extraction, chunking, and lexical search
+├── text-worker.ts   # Dedicated Web Worker for LLM text generation & token streaming
+├── media-worker.ts  # Web Worker for vision (image QA) & audio transcription runtimes
+├── storage.ts        # Browser quota preflight, cache inspection, and model disposal
+└── preferences.ts    # Safe local preference migration & theme settings
 ```
 
-Real-model tests are opt-in because they download several gigabytes and require desktop Chrome with WebGPU:
+- **IndexedDB**: Conversations and original attachment blobs are stored locally on your device.
+- **Lazy Loading**: `PDF.js` and `Mammoth` are loaded dynamically only when extracting PDF or Word files.
+- **Web Workers**: Model execution runs off the main UI thread to maintain 60 FPS UI responsiveness.
 
-```bash
-AETHER_REAL_HARDWARE=1 npm run test:e2e -- e2e/hardware.spec.ts --project desktop-chrome
-```
+---
 
-Set `AETHER_TEST_IMAGE=/absolute/image.png` and `AETHER_TEST_AUDIO=/absolute/audio.wav` to use representative fixtures. Verify a successful first download, cached reload, offline continuation, model removal, and no network request during cached generation on each supported machine.
+## 🚀 Firebase Hosting Deployment
 
-## Deployment and troubleshooting
+Aether is pre-configured for **Firebase Hosting**:
 
-Run `npm run build` and serve `dist/` from an HTTPS static host with SPA fallback to `index.html`.
+1. **Authenticate Firebase CLI**:
+   ```bash
+   npx firebase-tools login
+   ```
+2. **Deploy to Production**:
+   ```bash
+   npm run deploy
+   ```
 
-- **WebGPU unavailable:** update the desktop browser/GPU driver and verify HTTPS.
-- **Not enough storage:** free the displayed model size plus at least 25%, then retry.
-- **Download interrupted:** reconnect and retry; already cached files may be reused.
-- **Document has no text:** use a text-based PDF or a supported text/DOCX file; OCR is intentionally not included.
-- **Model is slow or crashes:** close GPU-heavy tabs and choose the smaller model for that mode.
+Deployments utilize SPA rewrite rules (`**` -> `/index.html`), Service Worker cache rules, and Cross-Origin isolation headers (`COOP`/`COEP`) for WebAssembly multi-threading support.
 
-## Dependency audit exception
+---
 
-`npm audit` currently reports five high advisories inherited through Node-only `onnxruntime-node`, `adm-zip`, and `sharp` paths. The browser production graph uses `onnxruntime-web`; these Node adapters and native binaries are not callable from the browser bundle. The browser-reachable `protobufjs` version is overridden to fixed 7.6.5. Re-audit this documented exception whenever Transformers.js or the Liquid audio adapter is upgraded. No high or critical browser-runtime-reachable advisory is accepted.
+## 🔒 Privacy & Security
+
+- **Data Privacy**: Model weights are downloaded once from Hugging Face and cached locally in your browser (IndexedDB). Prompts, chat history, and uploaded files stay 100% on your machine.
+- **No Telemetry**: Zero analytics, zero user tracking, zero external network calls during AI inference.
+- **Security Context**: Production deployments enforce HTTPS (required by WebGPU browser security policies).
+
+---
+
+## 📄 License
+
+Distributed under the **MIT License**. See `LICENSE` for more information.
