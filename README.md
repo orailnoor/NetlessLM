@@ -6,6 +6,16 @@
 [![PWA](https://img.shields.io/badge/PWA-Offline_Ready-5A0FC8?style=for-the-badge&logo=pwa)](https://local-browser-ai-app.web.app)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
+<p align="center">
+  🎬 <b>Watch the Setup & Demo Video:</b> <a href="https://youtu.be/tdg7T7LthY8">https://youtu.be/tdg7T7LthY8</a>
+</p>
+
+<p align="center">
+  <a href="https://youtu.be/tdg7T7LthY8">
+    <img src="https://img.youtube.com/vi/tdg7T7LthY8/maxresdefault.jpg" alt="Aether Setup & Demo Video" width="100%">
+  </a>
+</p>
+
 Aether is a browser-native, zero-backend AI workspace that executes Large Language Models (LLMs), Computer Vision models, and Audio processing entirely on client hardware using **WebGPU** and **WebAssembly (WASM)**.
 
 No external API keys, cloud servers, or user accounts are required. All inference, document chunking, and state persistence occur locally within the browser.
