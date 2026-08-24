@@ -53,36 +53,4 @@ for (const modelId of ['LiquidAI/LFM2.5-VL-450M-ONNX']) {
   });
 }
 
-test('real LFM2.5 Audio transcribes, speaks, and answers audio', async ({ page }) => {
-  test.skip(process.env.AETHER_REAL_HARDWARE !== '1', 'Opt-in real WebGPU model test.');
-  const audioPath = process.env.AETHER_TEST_AUDIO;
-  test.skip(!audioPath, 'Set AETHER_TEST_AUDIO to a short speech WAV.');
-  test.setTimeout(20 * 60_000);
-  const encodedAudio = readFileSync(audioPath!).toString('base64');
-  await page.goto('/');
-  const result = await page.evaluate(async (encoded) => {
-    const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
-    const context = new AudioContext();
-    const decoded = await context.decodeAudioData(bytes.buffer);
-    const samples = new Float32Array(decoded.length);
-    for (let channel = 0; channel < decoded.numberOfChannels; channel += 1) {
-      const data = decoded.getChannelData(channel);
-      for (let index = 0; index < data.length; index += 1) samples[index] = (samples[index] ?? 0) + (data[index] ?? 0) / decoded.numberOfChannels;
-    }
-    const modelsUrl = '/src/models.ts';
-    const clientUrl = '/src/media-client.ts';
-    const { MODEL_CATALOG } = await import(/* @vite-ignore */ modelsUrl) as typeof import('../src/models');
-    const { MediaClient } = await import(/* @vite-ignore */ clientUrl) as typeof import('../src/media-client');
-    const model = MODEL_CATALOG.find((candidate) => candidate.mode === 'audio')!;
-    const media = new MediaClient();
-    await media.initialize(model, 'webgpu');
-    const transcript = await media.transcribe(samples.slice(), decoded.sampleRate, 'webgpu');
-    const speech = await media.speak('Hello from Aether.', 'webgpu');
-    const conversation = await media.converseAudio(samples, decoded.sampleRate, 'Reply briefly.', 'webgpu');
-    await media.dispose(); await context.close();
-    return { transcript, speechSamples: speech.samples.length, conversationText: conversation.text, conversationSamples: conversation.samples.length };
-  }, encodedAudio);
-  expect(result.transcript.length).toBeGreaterThan(5);
-  expect(result.speechSamples).toBeGreaterThan(2_400);
-  expect(result.conversationText.length + result.conversationSamples).toBeGreaterThan(10);
-});
+

@@ -2,18 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#111111" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <meta name="description" content="Private LFM2.5 AI that runs in your browser." />
-    <title>Aether — Private Local AI</title>
-    <link rel="icon" href="/aether-mark.svg" type="image/svg+xml" />
+    <title>NetlessLM — Private Local AI</title>
+    <link rel="icon" href="/3.png" type="image/png" />
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
     <div class="app-frame" id="app-shell">
-      <aside class="sidebar" id="sidebar" aria-label="Aether navigation">
+      <aside class="sidebar" id="sidebar" aria-label="NetlessLM navigation">
         <div class="sidebar-head">
-          <div class="brand"><img src="/aether-mark.svg" alt="" /><span>Aether</span></div>
+          <div class="brand"><div class="logo"></div><span>NetlessLM</span></div>
           <button class="icon-button sidebar-close" id="sidebar-close" aria-label="Close navigation"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <button class="new-chat-button" id="new-chat-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>New chat</span></button>
@@ -21,7 +24,6 @@
           <span class="nav-label">Modes</span>
           <button class="mode-button active" data-mode="text" aria-current="page"><span class="mode-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span>Text</span></button>
           <button class="mode-button" data-mode="vision"><span class="mode-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/></svg></span><span>Vision</span></button>
-          <button class="mode-button" data-mode="audio"><span class="mode-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></span><span>Audio</span></button>
         </nav>
         <section class="recent-section" aria-labelledby="recent-title">
           <div class="recent-heading"><span class="nav-label" id="recent-title">Recents</span><span id="history-count"></span></div>
@@ -34,9 +36,7 @@
       <main class="workspace">
         <header class="workspace-header">
           <button class="icon-button menu-button" id="menu-button" aria-label="Open navigation"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
-          <button class="model-pill" id="model-pill" aria-label="Choose local model">
-            <span id="active-model-name">Choose model</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-          </button>
+          
           <div class="header-right-actions">
             <button class="icon-button theme-toggle-button" id="theme-toggle-button" aria-label="Toggle theme" title="Toggle dark/light theme"></button>
             <button class="icon-button header-new-chat" id="header-new-chat" aria-label="Start a new chat" title="Start new chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
@@ -44,7 +44,7 @@
         </header>
 
         <section class="workspace-view active" id="chat-view">
-          <div class="privacy-banner">Local AI can make mistakes. Check important information.</div>
+          <div class="privacy-banner hidden">Local AI can make mistakes.</div>
           <div class="chat-scroll" id="chat-messages" aria-live="polite"></div>
 
           <section class="empty-state" id="empty-state">
@@ -66,17 +66,22 @@
                 <button class="hidden" id="composer-preparation-retry">Retry</button>
               </div>
               <div class="composer-input-row">
-                <textarea id="prompt-input" rows="1" maxlength="16000" placeholder="Message" aria-label="Message Aether"></textarea>
+                <textarea id="prompt-input" rows="1" maxlength="16000" placeholder="Message" aria-label="Message NetlessLM"></textarea>
               </div>
               <div class="composer-actions">
                 <div class="attach-wrap">
                   <button class="round-button" id="attach-button" aria-label="Attach document"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
                   <input id="file-input" type="file" hidden />
                 </div>
-                <button class="thinking-toggle hidden" id="thinking-toggle" type="button" aria-label="Thinking enabled" aria-pressed="true" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg><span>Think</span></button>
-                <button class="round-button hidden" id="mic-button" aria-label="Start recording"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></button>
-                <button class="send-button" id="send-button" aria-label="Send message"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
-                <button class="stop-button hidden" id="stop-button" aria-label="Stop generation"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button>
+                <div class="composer-actions-right">
+                  <button class="model-pill" id="model-pill" aria-label="Choose local model">
+            <span class="model-status-dot unloaded" id="model-status-dot"></span>
+            <span id="active-model-name">Choose model</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+                  <button class="thinking-toggle hidden" id="thinking-toggle" type="button" aria-label="Thinking enabled" aria-pressed="true" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg><span>Think</span></button>
+                  <button class="send-button" id="send-button" aria-label="Send message"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+                  <button class="stop-button hidden" id="stop-button" aria-label="Stop generation"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button>
+                </div>
               </div>
             </div>
             <p class="composer-hint">Chats and attachments are saved only in this browser.</p>
@@ -89,8 +94,9 @@
             <article class="settings-card"><h2>Storage</h2><dl><div><dt>Site usage</dt><dd id="storage-used">Checking…</dd></div><div><dt>Available</dt><dd id="storage-available">Checking…</dd></div><div><dt>Saved chats</dt><dd id="history-usage">Checking…</dd></div><div><dt>Persistent</dt><dd id="storage-persisted">Checking…</dd></div></dl></article>
             <article class="settings-card"><h2>Downloaded models</h2><div id="downloaded-model-list" class="downloaded-model-list"></div></article>
             <article class="settings-card"><h2>Private history</h2><p>Messages and original attachments stay in IndexedDB on this device. Nothing is synchronized.</p><button class="danger-button" id="clear-history-button">Clear all history</button></article>
-            <article class="settings-card"><h2>Appearance</h2><p>Choose theme style for Aether UI.</p><div class="theme-button-group" id="theme-button-group"><button class="theme-option active" data-theme-value="dark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg><span>Dark</span></button><button class="theme-option" data-theme-value="light"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><span>Light</span></button><button class="theme-option" data-theme-value="system"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg><span>System</span></button></div></article>
+            <article class="settings-card"><h2>Appearance</h2><p>Choose theme style for NetlessLM UI.</p><div class="theme-button-group" id="theme-button-group"><button class="theme-option active" data-theme-value="dark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg><span>Dark</span></button><button class="theme-option" data-theme-value="light"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><span>Light</span></button><button class="theme-option" data-theme-value="system"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg><span>System</span></button></div></article>
             <article class="settings-card"><h2>Introduction</h2><p>Model downloads contact Hugging Face. Inference and saved conversations remain local.</p><button class="secondary-action" id="replay-onboarding">Replay introduction</button></article>
+            <article class="settings-card"><h2>Danger Zone</h2><p>Uninstall NetlessLM completely from this browser. This will delete all models, chat history, and preferences.</p><button class="danger-button" id="uninstall-app-button">Uninstall completely</button></article>
           </div>
         </section>
       </main>
@@ -114,7 +120,7 @@
     <div class="onboarding-backdrop hidden" id="onboarding-backdrop">
       <section class="onboarding-dialog" id="onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" tabindex="-1">
         <div class="onboarding-progress"><span class="active" data-step-dot="1"></span><span data-step-dot="2"></span><span data-step-dot="3"></span></div>
-        <article class="onboarding-slide active" data-onboarding-step="1"><img src="/aether-mark.svg" alt="" /><span>WELCOME TO AETHER</span><h2 id="onboarding-title">Private AI, inside your browser.</h2><p>Use text, vision, and audio models without an account. Prompts and inference stay on this device.</p><footer><span></span><button class="primary-action" data-onboarding-next>Continue</button></footer></article>
+        <article class="onboarding-slide active" data-onboarding-step="1"><div class="logo"></div><span>Welcome to NetlessLM</span><h2 id="onboarding-title">Private AI, inside your browser.</h2><p>Use text and vision models without an account. Prompts and inference stay on this device.</p><footer><span></span><button class="primary-action" data-onboarding-next>Continue</button></footer></article>
         <article class="onboarding-slide" data-onboarding-step="2"><div class="onboarding-glyph">↓</div><span>DOWNLOAD ONCE</span><h2>Choose only what you need.</h2><p>Each mode asks before downloading an LFM2.5 model. Cached models can work offline after the app shell is ready.</p><footer><button class="secondary-action" data-onboarding-back>Back</button><button class="primary-action" data-onboarding-next>Continue</button></footer></article>
         <article class="onboarding-slide" data-onboarding-step="3"><div class="onboarding-glyph">⌁</div><span>LOCAL HISTORY</span><h2>Your workspace stays on this device.</h2><p>Chats and attachments are saved locally for your Recents list. Delete one conversation or clear everything at any time.</p><footer><button class="secondary-action" data-onboarding-back>Back</button><button class="primary-action" id="finish-onboarding">Choose text model</button></footer></article>
       </section>

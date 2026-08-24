@@ -77,21 +77,6 @@ export const MODEL_CATALOG: readonly ModelDescriptor[] = [
     tier: 'recommended',
     description: 'Recommended vision model for more accurate visual reasoning.',
     browserVerified: false
-  },
-  {
-    id: 'LiquidAI/LFM2.5-Audio-1.5B-ONNX',
-    revision: '62318d95ddf42a65e742cdd6fd33df91874a801d',
-    name: 'LFM 2.5 Audio 1.5B',
-    publisher: 'Liquid AI',
-    mode: 'audio',
-    task: 'audio',
-    backend: 'webgpu',
-    dtype: { webgpu: 'q4' },
-    downloadBytes: 1_600_000_000,
-    contextTokens: 32_768,
-    license: 'LFM-1.0',
-    tier: 'recommended',
-    description: 'Local speech recognition, voice conversation, and speech output.'
   }
 ] as const;
 

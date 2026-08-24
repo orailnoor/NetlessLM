@@ -59,15 +59,14 @@ const composerDock = element<HTMLDivElement>('composer-dock');
 const promptInput = element<HTMLTextAreaElement>('prompt-input');
 const sendButton = element<HTMLButtonElement>('send-button');
 const stopButton = element<HTMLButtonElement>('stop-button');
-const micButton = element<HTMLButtonElement>('mic-button');
 const attachButton = element<HTMLButtonElement>('attach-button');
 const thinkingToggle = element<HTMLButtonElement>('thinking-toggle');
 const attachmentTray = element<HTMLDivElement>('attachment-tray');
-const composerPreparation = element<HTMLDivElement>('composer-preparation');
-const composerPreparationLabel = element<HTMLSpanElement>('composer-preparation-label');
-const composerPreparationPercent = element<HTMLElement>('composer-preparation-percent');
-const composerPreparationFill = element<HTMLDivElement>('composer-preparation-fill');
-const composerPreparationRetry = element<HTMLButtonElement>('composer-preparation-retry');
+const composerPreparation = document.getElementById('composer-preparation') as HTMLDivElement;
+const composerPreparationLabel = document.getElementById('composer-preparation-label') as HTMLSpanElement;
+const composerPreparationPercent = document.getElementById('composer-preparation-percent') as HTMLElement;
+const composerPreparationFill = document.getElementById('composer-preparation-fill') as HTMLDivElement;
+const composerPreparationRetry = document.getElementById('composer-preparation-retry') as HTMLButtonElement;
 const fileInput = element<HTMLInputElement>('file-input');
 const modelPill = element<HTMLButtonElement>('model-pill');
 const activeModelName = element<HTMLSpanElement>('active-model-name');
@@ -93,13 +92,12 @@ const confirmBackdrop = element<HTMLDivElement>('confirm-backdrop');
 const confirmCopy = element<HTMLParagraphElement>('confirm-copy');
 const toastRegion = element<HTMLDivElement>('toast-region');
 
-const ACCEPT_BY_KIND: Record<'image' | 'audio' | 'document', string> = {
+const ACCEPT_BY_KIND: Record<'image' | 'document', string> = {
   image: 'image/png,image/jpeg,image/webp',
-  audio: 'audio/wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/webm,.wav,.mp3,.m4a,.webm',
   document: '.pdf,.docx,.txt,.md,.csv,.json,.html,.htm,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 };
-const SYSTEM_PROMPT = 'You are Aether, a helpful private assistant running locally in the browser. Answer clearly, accurately, and complete your thoughts.';
-type PreparedAction = 'image' | 'audio' | 'document' | 'record';
+const SYSTEM_PROMPT = 'You are NetlessLM, a helpful private assistant running locally in the browser. Answer clearly, accurately, and complete your thoughts.';
+type PreparedAction = 'image' | 'document';
 
 let capabilities: CapabilityReport;
 let preferences: AppPreferencesV2;
@@ -116,9 +114,6 @@ let requestedAttachmentKind: PreparedAction | null = null;
 let downloadButtonMode: 'cancel' | 'continue' = 'cancel';
 let loadingModelMode: AppMode | null = null;
 let lastDownloadProgress: EngineProgress | null = null;
-let recorder: MediaRecorder | null = null;
-let recordingStream: MediaStream | null = null;
-let audioContext: AudioContext | null = null;
 let onboardingStep = 1;
 let confirmation: ((accepted: boolean) => void) | null = null;
 const objectUrls = new Set<string>();
@@ -203,56 +198,37 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 function setBusy(busy: boolean): void {
   generating = busy;
   attachButton.disabled = busy;
-  micButton.disabled = busy;
   sendButton.classList.toggle('hidden', busy);
   stopButton.classList.toggle('hidden', !busy);
   updateSendState();
 }
 
 function updateSendState(): void {
-  const hasAudio = pendingAttachmentIds.some((id) => attachments.get(id)?.kind === 'audio');
   const hasImage = Boolean(primaryImage());
   const requiredModes = new Set<AppMode>();
   for (const id of pendingAttachmentIds) {
     const kind = attachments.get(id)?.kind;
     if (kind === 'image') requiredModes.add('vision');
-    else if (kind === 'audio') requiredModes.add('audio');
     else if (kind === 'document') requiredModes.add('text');
   }
   if (!requiredModes.size && (activeMode === 'text' || promptInput.value.trim())) requiredModes.add(activeMode);
-  const modelsReady = [...requiredModes].every((mode) => sessionReadyModels.has(selectedModel(mode).id));
-  const textModelReady = activeMode !== 'text' || sessionReadyModels.has(selectedModel('text').id);
-  promptInput.disabled = generating || !textModelReady;
-  sendButton.disabled = generating || processingAttachmentIds.size > 0 || !modelsReady || (
-    activeMode === 'audio'
-      ? !hasAudio
-      : activeMode === 'vision'
-        ? !hasImage || (!promptInput.value.trim() && currentConversation?.messages.length !== 0)
-        : !promptInput.value.trim() && pendingAttachmentIds.length === 0
+  
+  const dot = document.getElementById('model-status-dot');
+  if (dot) {
+    const isReady = sessionReadyModels.has(selectedModel().id);
+    dot.className = `model-status-dot ${isReady ? 'loaded' : 'unloaded'}`;
+  }
+  promptInput.disabled = generating;
+  sendButton.disabled = generating || processingAttachmentIds.size > 0 || (
+    activeMode === 'vision'
+      ? !hasImage || (!promptInput.value.trim() && currentConversation?.messages.length !== 0)
+      : !promptInput.value.trim() && pendingAttachmentIds.length === 0
   );
 }
 
-function showManualModelPrompt(mode: AppMode, failed = false): void {
-  const model = selectedModel(mode);
-  promptedModelMode = mode;
-  composerPreparation.classList.remove('hidden');
-  composerPreparationLabel.textContent = failed ? `${model.name} could not load` : `Load ${model.name} to continue`;
-  composerPreparationPercent.textContent = failed ? '' : formatBytes(model.downloadBytes);
-  composerPreparationFill.style.width = '0%';
-  composerPreparationRetry.textContent = failed ? 'Retry' : 'Load model';
-  composerPreparationRetry.classList.remove('hidden');
-  updateSendState();
-}
+function showManualModelPrompt(mode: AppMode, failed = false): void {}
 
 function syncComposerModelPrompt(): void {
-  const model = selectedModel();
-  const composerIsRelevant = activeMode === 'text' || attachments.size > 0 || Boolean(currentConversation?.messages.length);
-  if (!composerIsRelevant) return;
-  if (sessionReadyModels.has(model.id)) {
-    if (!inlineModelPromises[activeMode] && failedInlineMode !== activeMode) composerPreparation.classList.add('hidden');
-  } else if (!inlineModelPromises[activeMode]) {
-    showManualModelPrompt(activeMode, failedInlineMode === activeMode);
-  }
   updateSendState();
 }
 
@@ -289,9 +265,8 @@ function updateModeNavigation(): void {
     button.classList.toggle('active', active);
     if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
   });
-  const attachmentLabels: Record<AppMode, string> = { text: 'Attach document', vision: 'Attach image', audio: 'Attach audio file' };
+  const attachmentLabels: Record<AppMode, string> = { text: 'Attach document', vision: 'Attach image' };
   attachButton.setAttribute('aria-label', attachmentLabels[activeMode]);
-  micButton.classList.toggle('hidden', activeMode !== 'audio');
   const model = selectedModel();
   activeModelName.textContent = model.name;
   const supportsThinking = activeMode === 'text' && model.supportsThinking === true;
@@ -332,30 +307,29 @@ async function renderEmptyState(): Promise<void> {
   if (!capabilities.webgpu) {
     emptyIcon.textContent = '!';
     emptyTitle.textContent = 'WebGPU is required';
-    emptyDescription.textContent = 'Aether’s curated LFM2.5 models need a WebGPU-capable desktop Chrome or Edge browser in a secure context.';
+    emptyDescription.textContent = 'NetlessLM’s curated LFM2.5 models need a WebGPU-capable desktop Chrome or Edge browser in a secure context.';
     emptyPrimary.textContent = 'Check again';
     emptyPrimary.dataset.action = 'recheck';
     return;
   }
-  emptyIcon.textContent = activeMode === 'text' ? '◌' : activeMode === 'vision' ? '◉' : '●';
   if (activeMode === 'vision') {
+    emptyIcon.classList.remove('hidden');
+    emptyIcon.textContent = '◉';
     emptyTitle.textContent = 'Choose an image';
+    emptyDescription.classList.remove('hidden');
     emptyDescription.textContent = 'Select an image first, then choose when to load its local model.';
     emptyPrimary.textContent = 'Select image';
     emptyPrimary.dataset.action = 'image';
-  } else if (activeMode === 'audio') {
-    emptyTitle.textContent = 'Start a voice conversation';
-    emptyDescription.textContent = 'Record or choose audio first, then choose when to load its local model.';
-    emptyPrimary.textContent = 'Record audio';
-    emptyPrimary.dataset.action = 'record';
-    emptySecondary.textContent = 'Choose audio file';
-    emptySecondary.dataset.action = 'audio';
-    emptySecondary.classList.remove('hidden');
+    emptyPrimary.classList.remove('hidden');
   } else {
-    emptyTitle.textContent = 'How can I help?';
-    emptyDescription.textContent = 'Load the selected local model, then ask a question or attach a document.';
-    emptyPrimary.textContent = 'Start typing';
-    emptyPrimary.dataset.action = 'focus';
+    const hour = new Date().getHours();
+    let greeting = 'Good evening';
+    if (hour < 12) greeting = 'Good morning';
+    else if (hour < 18) greeting = 'Good afternoon';
+    emptyIcon.classList.add('hidden');
+    emptyTitle.textContent = `${greeting}, How can I help?`;
+    emptyDescription.classList.add('hidden');
+    emptyPrimary.classList.add('hidden');
   }
   syncComposerModelPrompt();
 }
@@ -464,12 +438,6 @@ async function appendMessageElement(message: PersistedMessageV1): Promise<HTMLEl
       image.src = objectUrl(attachment.blob);
       image.alt = attachment.name;
       bubble.append(image);
-    } else if (attachment.kind === 'audio' || attachment.kind === 'generated-audio') {
-      const audio = document.createElement('audio');
-      audio.className = 'message-audio';
-      audio.controls = true;
-      audio.src = objectUrl(attachment.blob);
-      bubble.append(audio);
     } else {
       const file = document.createElement('div');
       file.className = 'message-file';
@@ -552,9 +520,31 @@ async function renderModels(): Promise<void> {
     const actions = document.createElement('div');
     actions.className = 'model-entry-actions';
     const choose = document.createElement('button');
-    choose.textContent = cached ? (selectedModel().id === model.id ? 'Use model' : 'Select') : 'Download';
+    const isLoaded = sessionReadyModels.has(model.id);
+    choose.textContent = isLoaded ? 'Active' : (cached ? (selectedModel().id === model.id ? 'Use model' : 'Select') : 'Download');
+    if (isLoaded) choose.disabled = true;
     choose.addEventListener('click', () => void selectAndLoadModel(model));
     actions.append(choose);
+    
+    if (isLoaded) {
+      const unload = document.createElement('button');
+      unload.className = 'unload-model';
+      unload.textContent = 'Unload';
+      unload.addEventListener('click', async () => {
+        sessionReadyModels.delete(model.id);
+        if (loadedModelByMode[mode] === model.id) loadedModelByMode[mode] = undefined;
+        if (mode === 'text') {
+          await textEngine.dispose().catch(()=>undefined);
+          textEngine = createTextEngine();
+        } else {
+          await mediaEngine.dispose().catch(()=>undefined);
+        }
+        showToast(`${model.name} unloaded from memory.`, 'success');
+        updateSendState();
+        await renderModels();
+      });
+      actions.append(unload);
+    }
     if (cached) {
       const remove = document.createElement('button');
       remove.className = 'remove-model';
@@ -607,13 +597,9 @@ function completedDownloadProgress(): EngineProgress | null {
 }
 
 function updateInlineProgress(model: ModelDescriptor, progress: EngineProgress): void {
-  composerPreparation.classList.remove('hidden');
-  composerPreparationRetry.classList.add('hidden');
-  composerPreparationLabel.textContent = progress.status === 'warming'
-    ? `Preparing ${model.name}…`
-    : `Loading ${model.name} · ${formatBytes(progress.loaded)} of ${formatBytes(progress.total)}`;
-  composerPreparationPercent.textContent = `${progress.percent}%`;
-  composerPreparationFill.style.width = `${progress.percent}%`;
+  sendButton.textContent = `${progress.percent}%`;
+  sendButton.style.fontSize = '0.75rem';
+  promptInput.placeholder = 'Message';
   updateSendState();
 }
 
@@ -641,6 +627,11 @@ async function prepareModelInline(mode: AppMode): Promise<boolean> {
         if (version === inlinePreparationVersion) updateInlineProgress(model, progress);
       };
       if (mode === 'text') {
+        if (loadedModelByMode.vision) {
+          sessionReadyModels.delete(loadedModelByMode.vision);
+          await mediaEngine.dispose().catch(()=>undefined);
+          loadedModelByMode.vision = undefined;
+        }
         if (loadedModelByMode.text && loadedModelByMode.text !== model.id) {
           sessionReadyModels.delete(loadedModelByMode.text);
           await textEngine.dispose();
@@ -648,35 +639,34 @@ async function prepareModelInline(mode: AppMode): Promise<boolean> {
         }
         await textEngine.initialize(model, 'webgpu', onProgress);
       } else {
+        if (loadedModelByMode.text) {
+          sessionReadyModels.delete(loadedModelByMode.text);
+          await textEngine.dispose().catch(()=>undefined);
+          textEngine = createTextEngine();
+          loadedModelByMode.text = undefined;
+        }
         if (loadedModelByMode.vision) sessionReadyModels.delete(loadedModelByMode.vision);
-        if (loadedModelByMode.audio) sessionReadyModels.delete(loadedModelByMode.audio);
         await mediaEngine.initialize(model, 'webgpu', onProgress);
         loadedModelByMode.vision = mode === 'vision' ? model.id : undefined;
-        loadedModelByMode.audio = mode === 'audio' ? model.id : undefined;
       }
       loadedModelByMode[mode] = model.id;
       sessionReadyModels.add(model.id);
       failedInlineMode = null;
       promptedModelMode = null;
-      if (version === inlinePreparationVersion) {
-        composerPreparationLabel.textContent = `${model.name} is ready`;
-        composerPreparationPercent.textContent = '100%';
-        composerPreparationFill.style.width = '100%';
-      }
+        sendButton.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+        sendButton.style.fontSize = '';
       return true;
     } catch (error) {
       failedInlineMode = mode;
       const message = error instanceof Error ? error.message : String(error);
-      composerPreparation.classList.remove('hidden');
-      showManualModelPrompt(mode, true);
+      sendButton.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+      sendButton.style.fontSize = '';
       showToast(`Model setup failed: ${message}`, 'error', 8000);
       return false;
     } finally {
       delete inlineModelPromises[mode];
       updateSendState();
-      if (!failedInlineMode) setTimeout(() => {
-        if (!Object.keys(inlineModelPromises).length && !processingAttachmentIds.size) composerPreparation.classList.add('hidden');
-      }, 900);
+      
     }
   })();
   inlineModelPromises[mode] = task;
@@ -715,6 +705,11 @@ async function selectAndLoadModel(model: ModelDescriptor): Promise<void> {
   try {
     if (!cached) await requestPersistentStorage();
     if (model.mode === 'text') {
+      if (loadedModelByMode.vision) {
+        sessionReadyModels.delete(loadedModelByMode.vision);
+        await mediaEngine.dispose().catch(()=>undefined);
+        loadedModelByMode.vision = undefined;
+      }
       if (loadedModelByMode.text && loadedModelByMode.text !== model.id) {
         sessionReadyModels.delete(loadedModelByMode.text);
         await textEngine.dispose();
@@ -722,11 +717,15 @@ async function selectAndLoadModel(model: ModelDescriptor): Promise<void> {
       }
       await textEngine.initialize(model, 'webgpu', updateDownloadProgress);
     } else {
+      if (loadedModelByMode.text) {
+        sessionReadyModels.delete(loadedModelByMode.text);
+        await textEngine.dispose().catch(()=>undefined);
+        textEngine = createTextEngine();
+        loadedModelByMode.text = undefined;
+      }
       if (loadedModelByMode.vision) sessionReadyModels.delete(loadedModelByMode.vision);
-      if (loadedModelByMode.audio) sessionReadyModels.delete(loadedModelByMode.audio);
       await mediaEngine.initialize(model, 'webgpu', updateDownloadProgress);
       loadedModelByMode.vision = model.mode === 'vision' ? model.id : undefined;
-      loadedModelByMode.audio = model.mode === 'audio' ? model.id : undefined;
     }
     loadedModelByMode[model.mode] = model.id;
     sessionReadyModels.add(model.id);
@@ -744,7 +743,7 @@ async function selectAndLoadModel(model: ModelDescriptor): Promise<void> {
     await renderEmptyState();
     syncComposerModelPrompt();
     if (requestedAttachmentKind) {
-      const labels: Record<PreparedAction, string> = { image: 'Choose image', audio: 'Choose audio file', document: 'Choose document', record: 'Start recording' };
+      const labels: Record<PreparedAction, string> = { image: 'Choose image', document: 'Choose document' };
       downloadButtonMode = 'continue';
       downloadTitle.textContent = 'Model ready';
       downloadStage.textContent = 'Continue when you are ready.';
@@ -767,23 +766,37 @@ async function selectAndLoadModel(model: ModelDescriptor): Promise<void> {
 }
 
 async function ensureModel(mode: AppMode): Promise<boolean> {
-  const ready = sessionReadyModels.has(selectedModel(mode).id);
-  if (!ready) showManualModelPrompt(mode);
-  return ready;
+  const model = selectedModel(mode);
+  const ready = sessionReadyModels.has(model.id);
+  if (!ready) {
+    const cached = await modelIsCached(model);
+    if (!cached) {
+      void selectAndLoadModel(model);
+      return false;
+    }
+    const originalDisabled = promptInput.disabled;
+    promptInput.disabled = true;
+    const success = await prepareModelInline(mode);
+    promptInput.disabled = originalDisabled;
+    sendButton.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+    sendButton.style.fontSize = '';
+    return success;
+  }
+  return true;
 }
 
-async function beginAttachment(kind: 'image' | 'audio' | 'document'): Promise<void> {
+async function beginAttachment(kind: 'image' | 'document'): Promise<void> {
   openFilePicker(kind);
 }
 
-function openFilePicker(kind: 'image' | 'audio' | 'document'): void {
+function openFilePicker(kind: 'image' | 'document'): void {
   fileInput.accept = ACCEPT_BY_KIND[kind];
   fileInput.dataset.kind = kind;
   fileInput.value = '';
   fileInput.click();
 }
 
-async function handleFile(file: File, kind: 'image' | 'audio' | 'document'): Promise<void> {
+async function handleFile(file: File, kind: 'image' | 'document'): Promise<void> {
   const error = validateAttachment(file, attachments.size);
   if (error) return showToast(error, 'error');
   const conversation = await ensureConversation();
@@ -840,12 +853,9 @@ function isRecoverableGpuError(error: unknown): boolean {
 }
 
 async function releaseMediaRuntime(): Promise<void> {
-  if (!loadedModelByMode.vision && !loadedModelByMode.audio) return;
-  if (loadedModelByMode.vision) sessionReadyModels.delete(loadedModelByMode.vision);
-  if (loadedModelByMode.audio) sessionReadyModels.delete(loadedModelByMode.audio);
+  if (!loadedModelByMode.vision) return;
   await mediaEngine.dispose().catch(() => undefined);
   loadedModelByMode.vision = undefined;
-  loadedModelByMode.audio = undefined;
 }
 
 async function generateTextWithRecovery(
@@ -879,7 +889,7 @@ async function sendCurrentMessage(): Promise<void> {
   if (generating || downloading || sendButton.disabled) return;
   const prompt = promptInput.value.trim();
   if (activeMode === 'vision') return sendVisionMessage(prompt);
-  if (activeMode === 'audio') return sendAudioMessage(prompt);
+
   return sendTextMessage(prompt);
 }
 
@@ -944,15 +954,7 @@ function createStreamingAssistant(label: string, showThinking = false): {
 async function sendTextMessage(prompt: string): Promise<void> {
   if (!prompt && !pendingAttachmentIds.length) return;
   let finalPrompt = prompt || 'Summarize the attached content.';
-  const audioAttachment = pendingAttachmentIds.map((id) => attachments.get(id)).find((attachment) => attachment?.kind === 'audio');
   const image = pendingAttachmentIds.map((id) => attachments.get(id)).find((attachment) => attachment?.kind === 'image') ?? primaryImage();
-  if (audioAttachment) {
-    if (!await ensureModel('audio')) return;
-    const decoded = await decodeAudio(audioAttachment.blob);
-    showToast('Transcribing the attached audio locally…');
-    const transcript = await mediaEngine.transcribe(decoded.samples, decoded.sampleRate, 'webgpu');
-    finalPrompt = `${finalPrompt}\n\nAudio transcript:\n${transcript}`;
-  }
   if (image) {
     if (!await ensureModel('vision')) return;
   } else if (!await ensureModel('text')) return;
@@ -1042,87 +1044,7 @@ async function generateVision(image: AttachmentRecordV1, _question: string, mode
   }
 }
 
-async function decodeAudio(blob: Blob): Promise<{ samples: Float32Array; sampleRate: number }> {
-  audioContext ??= new AudioContext();
-  const decoded = await audioContext.decodeAudioData(await blob.arrayBuffer());
-  const samples = new Float32Array(decoded.length);
-  for (let channel = 0; channel < decoded.numberOfChannels; channel += 1) {
-    const data = decoded.getChannelData(channel);
-    for (let index = 0; index < data.length; index += 1) samples[index] = (samples[index] ?? 0) + (data[index] ?? 0) / decoded.numberOfChannels;
-  }
-  return { samples, sampleRate: decoded.sampleRate };
-}
 
-function wavBlob(samples: Float32Array, sampleRate: number): Blob {
-  const buffer = new ArrayBuffer(44 + samples.length * 2);
-  const view = new DataView(buffer);
-  const write = (offset: number, value: string) => [...value].forEach((character, index) => view.setUint8(offset + index, character.charCodeAt(0)));
-  write(0, 'RIFF'); view.setUint32(4, 36 + samples.length * 2, true); write(8, 'WAVE'); write(12, 'fmt ');
-  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true); write(36, 'data'); view.setUint32(40, samples.length * 2, true);
-  samples.forEach((sample, index) => view.setInt16(44 + index * 2, Math.max(-1, Math.min(1, sample)) * 0x7fff, true));
-  return new Blob([buffer], { type: 'audio/wav' });
-}
-
-async function sendAudioMessage(prompt: string): Promise<void> {
-  const audio = pendingAttachmentIds.map((id) => attachments.get(id)).find((attachment) => attachment?.kind === 'audio');
-  if (!audio) return showToast('Record or choose an audio file first.', 'error');
-  if (!await ensureModel('audio')) return;
-  const attachmentIds = [...pendingAttachmentIds];
-  const streaming = createStreamingAssistant('Transcribing locally…');
-  setBusy(true);
-  try {
-    const decoded = await decodeAudio(audio.blob);
-    const transcript = await mediaEngine.transcribe(decoded.samples.slice(), decoded.sampleRate, 'webgpu');
-    const userText = prompt ? `${transcript}\n\nInstruction: ${prompt}` : transcript;
-    await saveUserMessage(userText, attachmentIds);
-    streaming.content.textContent = 'Generating a private voice response…';
-    const prior = currentConversation?.messages.slice(-8).map((message) => `${message.role}: ${message.text}`).join('\n') ?? '';
-    const result = await mediaEngine.converseAudio(decoded.samples, decoded.sampleRate, `Continue this conversation.\n${prior}`.slice(-8_000), 'webgpu');
-    streaming.row.remove();
-    const responseText = result.text || 'A local audio response was generated.';
-    const generatedIds: string[] = [];
-    if (result.samples.length) {
-      const conversation = await ensureConversation();
-      const generated: AttachmentRecordV1 = {
-        id: crypto.randomUUID(), version: 1, conversationId: conversation.id, kind: 'generated-audio', name: 'Aether response.wav',
-        mimeType: 'audio/wav', size: result.samples.length * 2 + 44, blob: wavBlob(result.samples, result.sampleRate), createdAt: Date.now()
-      };
-      await saveAttachment(generated);
-      attachments.set(generated.id, generated);
-      generatedIds.push(generated.id);
-    }
-    await saveAssistantMessage(responseText, generatedIds, undefined, selectedModel('audio').id);
-  } catch (audioError) {
-    streaming.row.remove();
-    showToast(`Audio conversation failed: ${audioError instanceof Error ? audioError.message : String(audioError)}`, 'error', 8000);
-  } finally { setBusy(false); }
-}
-
-async function toggleRecording(): Promise<void> {
-  if (recorder?.state === 'recording') return recorder.stop();
-  try {
-    recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const chunks: Blob[] = [];
-    recorder = new MediaRecorder(recordingStream);
-    recorder.addEventListener('dataavailable', (event) => { if (event.data.size) chunks.push(event.data); });
-    recorder.addEventListener('stop', async () => {
-      recordingStream?.getTracks().forEach((track) => track.stop());
-      recordingStream = null;
-      micButton.textContent = '●';
-      micButton.classList.remove('recording');
-      const blob = new Blob(chunks, { type: recorder?.mimeType || 'audio/webm' });
-      const file = new File([blob], `Recording ${new Date().toLocaleTimeString()}.webm`, { type: blob.type });
-      await handleFile(file, 'audio');
-    });
-    recorder.start();
-    micButton.textContent = '■';
-    micButton.classList.add('recording');
-    showToast('Recording… Press stop when finished.');
-  } catch {
-    showToast('Microphone access was not granted.', 'error');
-  }
-}
 
 async function updateSettings(): Promise<void> {
   const [storage, usage, cachedStates] = await Promise.all([
@@ -1189,8 +1111,7 @@ function bindEvents(): void {
       requestedAttachmentKind = null;
       downloadButtonMode = 'cancel';
       modelModalBackdrop.classList.add('hidden');
-      if (action === 'record') void toggleRecording();
-      else if (action) openFilePicker(action);
+      if (action) openFilePicker(action);
       return;
     }
     if (loadingModelMode === 'text') textEngine.cancel(); else mediaEngine.cancel();
@@ -1202,15 +1123,15 @@ function bindEvents(): void {
   });
   emptyPrimary.addEventListener('click', () => void handleEmptyAction(emptyPrimary.dataset.action));
   emptySecondary.addEventListener('click', () => void handleEmptyAction(emptySecondary.dataset.action));
-  attachButton.addEventListener('click', () => void beginAttachment(activeMode === 'text' ? 'document' : activeMode === 'vision' ? 'image' : 'audio'));
-  fileInput.addEventListener('change', () => { const file = fileInput.files?.[0]; if (file) void handleFile(file, fileInput.dataset.kind as 'image' | 'audio' | 'document'); });
+  attachButton.addEventListener('click', () => void beginAttachment(activeMode === 'text' ? 'document' : 'image'));
+  fileInput.addEventListener('change', () => { const file = fileInput.files?.[0]; if (file) void handleFile(file, fileInput.dataset.kind as 'image' | 'document'); });
   promptInput.addEventListener('input', () => {
     resizePrompt();
   });
   promptInput.addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendCurrentMessage(); } });
   sendButton.addEventListener('click', () => void sendCurrentMessage());
   stopButton.addEventListener('click', () => { textEngine.cancel(); setBusy(false); showToast('Generation stopped.'); });
-  micButton.addEventListener('click', () => void toggleRecording());
+
   composerPreparationRetry.addEventListener('click', () => {
     const mode = promptedModelMode ?? failedInlineMode;
     failedInlineMode = null;
@@ -1218,6 +1139,22 @@ function bindEvents(): void {
     if (mode) void prepareModelInline(mode);
   });
   element('clear-history-button').addEventListener('click', async () => { if (!await confirmAction('Delete every saved conversation and attachment from this browser? Downloaded models will remain.')) return; await clearHistory(); await startNewConversation(); await updateSettings(); showToast('Local history cleared.', 'success'); });
+  element('uninstall-app-button').addEventListener('click', async () => {
+    if (!await confirmAction('Uninstall NetlessLM? This will delete all downloaded models, chat history, and settings from your browser. This action cannot be undone.')) return;
+    showToast('Uninstalling...', 'default', 10000);
+    for (const model of MODEL_CATALOG) {
+      await removeModelFromCache(model).catch(() => {});
+    }
+    await clearHistory();
+    localStorage.clear();
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const registration of registrations) {
+        await registration.unregister();
+      }
+    }
+    window.location.reload();
+  });
   element('replay-onboarding').addEventListener('click', showOnboarding);
   element('confirm-cancel').addEventListener('click', () => resolveConfirmation(false)); element('confirm-accept').addEventListener('click', () => resolveConfirmation(true));
   document.querySelectorAll<HTMLButtonElement>('[data-onboarding-next]').forEach((button) => button.addEventListener('click', () => { onboardingStep = Math.min(3, onboardingStep + 1); updateOnboarding(); }));
@@ -1240,8 +1177,7 @@ function bindEvents(): void {
 async function handleEmptyAction(action?: string): Promise<void> {
   if (action === 'model') return openModelPicker();
   if (action === 'image') return beginAttachment('image');
-  if (action === 'audio') return beginAttachment('audio');
-  if (action === 'record') return toggleRecording();
+
   if (action === 'focus') {
     composerDock.classList.remove('hidden');
     syncComposerModelPrompt();
@@ -1266,5 +1202,5 @@ async function initialize(): Promise<void> {
 }
 
 void initialize().catch((error) => {
-  showToast(`Aether could not start: ${error instanceof Error ? error.message : String(error)}`, 'error', 10_000);
+  showToast(`NetlessLM could not start: ${error instanceof Error ? error.message : String(error)}`, 'error', 10_000);
 });

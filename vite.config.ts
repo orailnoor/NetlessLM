@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['aether-mark.svg'],
       manifest: {
-        name: 'Aether Local AI',
-        short_name: 'Aether',
+        name: 'NetlessLM Local AI',
+        short_name: 'NetlessLM',
         description: 'Private, browser-native AI that runs on your device.',
         theme_color: '#0b0d12',
         background_color: '#0b0d12',
@@ -23,6 +23,16 @@ export default defineConfig({
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'any maskable'
+          },
+          {
+            src: '/icon-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: '/icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png'
           }
         ]
       },

@@ -6,7 +6,7 @@ describe('three-mode model selection and preferences', () => {
   it('exposes only pinned LFM models for text, vision, and audio', () => {
     expect(modelsForMode('text')).toHaveLength(3);
     expect(modelsForMode('vision')).toHaveLength(1);
-    expect(modelsForMode('audio')).toHaveLength(1);
+
     expect(MODEL_CATALOG.every((model) => model.name.startsWith('LFM 2.5'))).toBe(true);
     expect(MODEL_CATALOG.every((model) => model.revision.length === 40)).toBe(true);
     expect(recommendedModel('text').id).toContain('LFM2.5-1.2B');

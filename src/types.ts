@@ -1,9 +1,9 @@
 export type Backend = 'webgpu' | 'wasm';
-export type AppMode = 'text' | 'vision' | 'audio';
-export type ModelTask = 'text-generation' | 'audio' | 'vision-language';
+export type AppMode = 'text' | 'vision';
+export type ModelTask = 'text-generation' | 'vision-language';
 export type CapabilityTier = 'recommended' | 'fast' | 'quality' | 'optional';
 export type ModelDtype = 'auto' | 'fp32' | 'fp16' | 'q8' | 'int8' | 'uint8' | 'q4' | 'q4f16' | 'bnb4' | 'q2' | 'q2f16' | 'q1' | 'q1f16';
-export type AttachmentKind = 'image' | 'audio' | 'document' | 'generated-audio';
+export type AttachmentKind = 'image' | 'document';
 
 export interface ModelDescriptor {
   id: string;

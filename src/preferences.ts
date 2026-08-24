@@ -3,7 +3,7 @@ import type { AppMode, AppPreferencesV2 } from './types';
 
 export const PREFERENCES_KEY = 'aether.preferences.v2';
 const LEGACY_KEY = 'aether.preferences.v1';
-const MODES: AppMode[] = ['text', 'vision', 'audio'];
+const MODES: AppMode[] = ['text', 'vision'];
 
 export function defaultPreferences(): AppPreferencesV2 {
   return {
@@ -12,8 +12,7 @@ export function defaultPreferences(): AppPreferencesV2 {
     activeMode: 'text',
     selectedModelByMode: {
       text: recommendedModel('text').id,
-      vision: recommendedModel('vision').id,
-      audio: recommendedModel('audio').id
+      vision: recommendedModel('vision').id
     },
     compactSidebar: false,
     theme: 'dark'
