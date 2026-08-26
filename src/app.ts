@@ -106,7 +106,7 @@ let currentConversation: ConversationRecordV1 | null = null;
 let attachments = new Map<string, AttachmentRecordV1>();
 let pendingAttachmentIds: string[] = [];
 let textEngine: TextEngine = createTextEngine();
-const mediaEngine: MediaEngine = createMediaClient();
+let mediaEngine: MediaEngine = createMediaClient();
 const loadedModelByMode: Partial<Record<AppMode, string>> = {};
 let generating = false;
 let downloading = false;
@@ -622,7 +622,7 @@ async function prepareModelInline(mode: AppMode): Promise<boolean> {
         throw new Error(`${model.name} needs about ${formatBytes(model.downloadBytes * 1.25)} free.`);
       }
       if (!cached) await requestPersistentStorage();
-      updateInlineProgress(model, { status: 'downloading', loaded: 0, total: model.downloadBytes, percent: 0, file: 'Starting…' });
+            updateInlineProgress(model, { status: 'downloading', loaded: 0, total: model.downloadBytes, percent: 0, file: 'Starting…' });
       const onProgress = (progress: EngineProgress) => {
         if (version === inlinePreparationVersion) updateInlineProgress(model, progress);
       };
@@ -704,7 +704,7 @@ async function selectAndLoadModel(model: ModelDescriptor): Promise<void> {
   downloadStage.textContent = cached ? 'Preparing…' : 'Starting download…';
   try {
     if (!cached) await requestPersistentStorage();
-    if (model.mode === 'text') {
+        if (model.mode === 'text') {
       if (loadedModelByMode.vision) {
         sessionReadyModels.delete(loadedModelByMode.vision);
         await mediaEngine.dispose().catch(()=>undefined);
@@ -1059,7 +1059,21 @@ async function updateSettings(): Promise<void> {
   for (const { model } of cachedStates.filter((state) => state.cached)) {
     const row = document.createElement('div'); row.className = 'downloaded-entry';
     const copy = document.createElement('div'); copy.innerHTML = `<strong></strong><span></span>`; copy.querySelector('strong')!.textContent = model.name; copy.querySelector('span')!.textContent = `${model.mode} · ${formatBytes(model.downloadBytes)}`;
-    const remove = document.createElement('button'); remove.textContent = 'Remove'; remove.addEventListener('click', async () => { await removeModelFromCache(model); sessionReadyModels.delete(model.id); showToast(`${model.name} removed.`, 'success'); await updateSettings(); });
+    const remove = document.createElement('button'); remove.textContent = 'Remove'; remove.addEventListener('click', async () => {
+      await removeModelFromCache(model);
+      sessionReadyModels.delete(model.id);
+      if (textEngine?.modelId === model.id) {
+        textEngine.dispose();
+        textEngine = undefined;
+      }
+      if (mediaEngine?.modelId === model.id) {
+        mediaEngine.dispose();
+        mediaEngine = undefined;
+      }
+      syncComposerModelPrompt();
+      showToast(`${model.name} removed.`, 'success');
+      await updateSettings();
+    });
     row.append(copy, remove); list.append(row);
   }
   if (!list.children.length) list.textContent = 'No downloaded models detected.';

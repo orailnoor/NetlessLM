@@ -405,7 +405,7 @@ button {
   border-color: var(--accent);
 }
 .workspace-view {
-  height: calc(100dvh - 72px);
+  height: 100dvh;
   position: relative;
 }
 .privacy-banner {
@@ -417,7 +417,7 @@ button {
 }
 .chat-scroll {
   position: absolute;
-  inset: 44px 0 142px;
+  inset: 72px 0 142px;
   overflow: auto;
   padding: 24px max(28px, calc((100% - 900px) / 2)) 80px;
   scrollbar-width: thin;
@@ -1095,7 +1095,7 @@ button {
 .toast-region {
   position: fixed;
   right: 18px;
-  bottom: 128px;
+  top: 18px;
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -1172,7 +1172,7 @@ button {
   .chat-scroll {
     padding-left: 16px;
     padding-right: 16px;
-    inset-bottom: 135px;
+    inset-bottom: 110px;
   }
   .message-bubble {
     max-width: 94%;
@@ -1204,7 +1204,7 @@ button {
     height: 62px;
   }
   .workspace-view {
-    height: calc(100dvh - 62px);
+    height: 100dvh;
   }
   .header-new-chat,
   .menu-button {

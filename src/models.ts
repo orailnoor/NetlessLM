@@ -9,7 +9,7 @@ export const MODEL_CATALOG: readonly ModelDescriptor[] = [
     mode: 'text',
     task: 'text-generation',
     backend: 'webgpu',
-    dtype: { webgpu: 'q4' },
+    dtype: { webgpu: 'q4f16' },
     downloadBytes: 276_000_000,
     contextTokens: 32_768,
     license: 'LFM-1.0',

@@ -29,8 +29,9 @@ export class DownloadProgressTracker {
     fallbackPercent = 0,
     complete = false
   ): FileProgress & { percent: number } {
-    if (loaded > 0 || total > 0 || !this.#files.has(file)) {
-      this.#files.set(file, { loaded, total });
+    const key = file.split('/').pop()?.split('?')[0] || file;
+    if (loaded > 0 || total > 0 || !this.#files.has(key)) {
+      this.#files.set(key, { loaded, total });
     }
     const observed = calculateProgress(this.#files.values(), fallbackPercent);
     const expectedTotal = Math.max(this.#expectedTotal, observed.total);
