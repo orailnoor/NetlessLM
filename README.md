@@ -1,13 +1,13 @@
 # Aether
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-https%3A%2F%2Flocal--browser--ai--app.web.app-7c4dff?style=for-the-badge&logo=firebase)](https://local-browser-ai-app.web.app)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-https%3A%2F%2Fnetless--lm.web.app-7c4dff?style=for-the-badge&logo=firebase)](https://netless-lm.web.app)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20.19.0-339933?style=for-the-badge&logo=nodedotjs)](https://nodejs.org)
 [![WebGPU](https://img.shields.io/badge/WebGPU-Accelerated-007ACC?style=for-the-badge&logo=w3c)](https://www.w3.org/TR/webgpu/)
-[![PWA](https://img.shields.io/badge/PWA-Offline_Ready-5A0FC8?style=for-the-badge&logo=pwa)](https://local-browser-ai-app.web.app)
+[![PWA](https://img.shields.io/badge/PWA-Offline_Ready-5A0FC8?style=for-the-badge&logo=pwa)](https://netless-lm.web.app)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
 <p align="center">
-  🎬 <b>Watch the Setup & Demo Video:</b> <a href="https://youtu.be/tdg7T7LthY8">https://youtu.be/tdg7T7LthY8</a>
+  <b>Watch the Setup & Demo Video:</b> <a href="https://youtu.be/tdg7T7LthY8">https://youtu.be/tdg7T7LthY8</a>
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@ Aether is a browser-native, zero-backend AI workspace that executes Large Langua
 
 No external API keys, cloud servers, or user accounts are required. All inference, document chunking, and state persistence occur locally within the browser.
 
-[**Launch Live Demo**](https://local-browser-ai-app.web.app)
+[**Launch Live Demo**](https://netless-lm.web.app)
 
 ---
 

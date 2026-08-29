@@ -698,7 +698,7 @@ async function selectAndLoadModel(model: ModelDescriptor): Promise<void> {
   modelModalBackdrop.classList.remove('hidden');
   downloadTitle.textContent = cached ? 'Prepare selected model' : 'Download selected model';
   downloadModelName.textContent = model.name;
-  downloadModelMeta.textContent = `${formatBytes(model.downloadBytes)} · ${model.license}`;
+  downloadModelMeta.textContent = model.license;
   downloadProgress.style.width = '0%';
   downloadProgressText.textContent = cached ? 'Reading from browser cache…' : `0 B of ${formatBytes(model.downloadBytes)} · 0%`;
   downloadStage.textContent = cached ? 'Preparing…' : 'Starting download…';

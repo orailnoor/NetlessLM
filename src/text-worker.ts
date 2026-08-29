@@ -84,6 +84,17 @@ async function loadModel(requestId: string, model: ModelDescriptor, backend: 'we
     }
   }) as unknown as TextPipeline;
   loadedModelId = model.id;
+  try {
+    post({
+      type: 'progress',
+      requestId,
+      progress: { status: 'warming', file: 'Warming up model…', loaded: 1, total: 1, percent: 100 }
+    });
+    const dummyStreamer = new transformersModule.TextStreamer(generator.tokenizer as never, { skip_prompt: true });
+    await generator([{ role: 'user', content: 'Hi' }], { max_new_tokens: 1, streamer: dummyStreamer });
+  } catch (e) {
+    console.warn('Pre-warm failed (might be offline or missing files)', e);
+  }
   post({ type: 'ready', requestId, modelId: model.id });
 }
 
